@@ -1,0 +1,111 @@
+---
+title: "Hugo_DE_Part3"
+author: "Hugo Kim"
+date: "9/7/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(topGO)
+library(ALL)
+library(hgu95av2.db)
+data(ALL)
+data(geneList)
+affyLib <- paste(annotation(ALL), "db", sep = ".")
+ library(package = affyLib, character.only = TRUE)
+sampleGOdata <- new("topGOdata",
+ description = "Simple session", ontology = "BP",
+ allGenes = geneList, geneSel = topDiffGenes,
+ nodeSize = 10,
+ annot = annFUN.db, affyLib = affyLib)
+```
+
+## R Markdown
+Lets compare EdgeR with DEseq
+
+```{r Compare}
+DEseq_Result=results(dds, name="Regen_YES_vs_NO")
+MyensembleGenes <- sapply(strsplit(rownames(DEseq_Result),"\\."), function(x) x[1])
+symb <- mapIds(org.Mm.eg.db, keys=MyensembleGenes, keytype="ENSEMBL", column="SYMBOL")
+rownames(DEseq_Result) <- uniquifyFeatureNames(rownames(DEseq_Result), symb)
+
+DEseq_Result=na.omit(DEseq_Result)
+DEseq_Result=DEseq_Result[DEseq_Result$padj<0.05,]
+DEseq_Result=DEseq_Result[order(DEseq_Result$padj),]
+DEseq_Refseq=DEseq_Result[grepl("ENSMUS",rownames(DEseq_Result))==FALSE,]
+
+
+
+
+EdgeRresult_Refseq
+
+EdgeRresult
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+match(rownames(EdgeRresult_Refseq),rownames(DEseq_Refseq))
+Edge_DE_ref=EdgeRresult_Refseq[na.omit(match(rownames(DEseq_Refseq),rownames(EdgeRresult_Refseq))),]
+DE_Edge_ref=DEseq_Refseq[na.omit(match(rownames(EdgeRresult_Refseq),rownames(DEseq_Refseq))),]
+Edge_DE_ref=Edge_DE_ref[order(rownames(Edge_DE_ref)),]
+DE_Edge_ref=DE_Edge_ref[order(rownames(DE_Edge_ref)),]
+EdgeRandDECombined_Ref=cbind(DE_Edge_ref,Edge_DE_ref)
+EdgeRandDECombined_Ref=EdgeRandDECombined_Ref[order(EdgeRandDECombined_Ref$padj),] #DEseq sig
+EdgeRandDECombined_Ref=EdgeRandDECombined_Ref[order(EdgeRandDECombined_Ref$EdgeRpVals),] #edgeR sig
+Annotation=goana(rownames(EdgeRandDECombined_Ref))
+GOANALYSIS=topGO(Annotation)
+
+MyDEGenes_Ref=EdgeRandDECombined_Ref$padj
+names(MyDEGenes_Ref)=rownames(EdgeRandDECombined_Ref)
+alg=MyDEGenes_Ref
+
+
+
+
+Edge_DE=EdgeRresult[na.omit(match(rownames(DEseq_Result),rownames(EdgeRresult))),]
+DE_Edge=DEseq_Result[na.omit(match(rownames(EdgeRresult),rownames(DEseq_Result))),]
+
+
+
+```
+
+Remove astrocyte : After SingleRc => neuron only DEseq
+
+```{r}
+#experiment.merged$newlabel
+samplematrix=samplematrixall+1
+samplematrix=samplematrix[,na.omit(match(colnames(samplematrix),names(experiment.merged$newlabel)))]
+samplematrix=samplematrix[,experiment.merged$newlabel=="Neurons"]
+refsall=rbind(refs2,refs3,refs4)
+refs=refsall
+refs=refs[na.omit(match(colnames(samplematrix),rownames(refsall))),]
+refs=na.omit(refs[experiment.merged$newlabel=="Neurons",])
+dds <- DESeqDataSetFromMatrix(countData = samplematrix,
+                              colData = refs,
+                              design= ~ Regen)
+dds <- DESeq(dds)
+resultsNames(dds) # lists the coefficients
+```
+```{r}
+res_neurons <- results(dds, name="Regen_YES_vs_NO")
+write.table(res_neurons ,"RNB1-4_DEseq2_Neurons.txt")
+DEseq_Result_neurons=res_neurons
+MyensembleGenes <- sapply(strsplit(rownames(DEseq_Result_neurons),"\\."), function(x) x[1])
+symb <- mapIds(org.Mm.eg.db, keys=MyensembleGenes, keytype="ENSEMBL", column="SYMBOL")
+rownames(DEseq_Result_neurons) <- uniquifyFeatureNames(rownames(DEseq_Result_neurons), symb)
+
+DEseq_Result_neurons=na.omit(DEseq_Result_neurons)
+DEseq_Result_neurons=DEseq_Result_neurons[DEseq_Result_neurons$padj<0.05,]
+DEseq_Result_neurons=DEseq_Result_neurons[order(DEseq_Result_neurons$padj),]
+DEseq_Result_neurons_Refseq=DEseq_Result_neurons[grepl("ENSMUS",rownames(DEseq_Result_neurons))==FALSE,]
+
+write.table(DEseq_Result_neurons ,"RNB1-4_DEseq2_Neurons_Ref.txt")
+```
+Rerun
+```{r}
+
+

@@ -1,0 +1,281 @@
+---
+title: "My analysis"
+author: "Hugo Kim"
+date: "4/8/2021"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(DESeq2)
+library(dplyr)
+library(Seurat)
+library(kableExtra)
+library(ggplot2)
+library(rhdf5)
+library(EnhancedVolcano)
+```
+
+## Insert mydata
+
+Download my old table (Skip if already Combined)
+```{r}
+MyRNAseqDataRNB2=read.table("CombinedRNB2Limited100.txt")
+Mylabels=mainnames=read.table('listcntRNB2.txt',header=TRUE)
+rownames(MyRNAseqDataRNB2)=MyRNAseqDataRNB2[,1]
+MyRNAseqDataRNB2=MyRNAseqDataRNB2[,-1]
+colnames(MyRNAseqDataRNB2)=Mylabels[,1]
+samplematrix2=as.matrix(MyRNAseqDataRNB2)
+refs2= read.table("PhenotypeRNB2.txt",header=TRUE)
+rownames(refs2)=refs2[,1]
+MyRNAseqDataRNB1=read.table("CombinedRNB1Limited100.txt",header=TRUE)
+rownames(MyRNAseqDataRNB1)=MyRNAseqDataRNB1[,1]
+MyRNAseqDataRNB1=MyRNAseqDataRNB1[,-1]
+MyRNAseqDataRNB1=MyRNAseqDataRNB1[match(rownames(MyRNAseqDataRNB2),rownames(MyRNAseqDataRNB1)),]
+samplematrix1=as.matrix(MyRNAseqDataRNB1)
+refs1= read.table("PhenotypeRNB1.txt",header=TRUE)
+rownames(refs1)=refs1[,1]
+refsall=rbind(refs2,refs1)
+MyRNAseqDataRNBall=cbind(MyRNAseqDataRNB2,MyRNAseqDataRNB1)
+samplematrixall=as.matrix(MyRNAseqDataRNBall)
+```
+IFcombined, use
+
+```{r}
+MyRNAseqDataRNB2=read.table("CombinedRNB12.txt")
+Mylabels=mainnames=read.table('listcntRNB2_Unlimited.txt',header=TRUE)
+rownames(MyRNAseqDataRNB2)=MyRNAseqDataRNB2[,1]
+MyRNAseqDataRNB2=MyRNAseqDataRNB2[,-1]
+colnames(MyRNAseqDataRNB2)=Mylabels[,1]
+samplematrix2=as.matrix(MyRNAseqDataRNB2)
+refs2= read.table("PhenotypeRNB12.txt",header=TRUE)
+rownames(refs2)=refs2[,1]
+refs2=refs2[match(colnames(samplematrix2),rownames(refs2)),]
+refsall=refs2
+MyRNAseqDataRNBall=MyRNAseqDataRNB2
+samplematrixall=as.matrix(MyRNAseqDataRNB2)
+```
+
+
+RNB3
+```{r}
+MyRNAseqDataRNB3=read.table("CombinedRNB3.txt")
+Mylabels=read.table('listcntRNB3.txt',header=TRUE)
+rownames(MyRNAseqDataRNB3)=MyRNAseqDataRNB3[,1]
+MyRNAseqDataRNB3=MyRNAseqDataRNB3[,-1]
+colnames(MyRNAseqDataRNB3)=Mylabels[,1]
+samplematrix3=as.matrix(MyRNAseqDataRNB3)
+refs3= read.table("PhenotypeRNB3.txt",header=TRUE)
+rownames(refs3)=refs3[,1]
+
+refsall=rbind(refs2,refs3)
+MyRNAseqDataRNBall=cbind(MyRNAseqDataRNB2,MyRNAseqDataRNB3)
+samplematrixall=as.matrix(MyRNAseqDataRNBall)
+```
+
+RNB3.5-4
+```{r}
+MyRNAseqDataRNB4=read.table("CombinedRNB4.txt")
+Mylabels=read.table('listcntRNB3.5-4.txt',header=TRUE)
+rownames(MyRNAseqDataRNB4)=MyRNAseqDataRNB4[,1]
+MyRNAseqDataRNB4=MyRNAseqDataRNB4[,-1]
+colnames(MyRNAseqDataRNB4)=Mylabels[,1]
+samplematrix4=as.matrix(MyRNAseqDataRNB4)
+refs4= read.table("PhenotypeRNB3.5-4.txt",header=TRUE)
+rownames(refs4)=refs4[,1]
+refs4=refs4[match(colnames(samplematrix4),rownames(refs4)),]
+
+
+refsall=rbind(refs2,refs3,refs4)
+MyRNAseqDataRNBall=cbind(MyRNAseqDataRNB2,MyRNAseqDataRNB3,MyRNAseqDataRNB4)
+samplematrixall=as.matrix(MyRNAseqDataRNBall)
+```
+
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+samplematrix=samplematrixall+1
+refs=refsall
+
+
+dds <- DESeqDataSetFromMatrix(countData = samplematrix,
+                              colData = refs,
+                              design= ~ Regen)
+dds <- DESeq(dds)
+resultsNames(dds) # lists the coefficients
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+
+```{r}
+restest <- results(dds, name="Regen_Ref_vs_NO")
+write.table(restest,"RNB1-4_Test_DEseq2_Unlimited.txt")
+# or to shrink log fold changes association with condition:
+res <- results(dds, name="Regen_YES_vs_NO")
+write.table(res,"RNB1-4_DEseq2_Unlimited.txt")
+```
+
+Lets check which direction is positive
+```{r}
+Firstgene=t(MyRNAseqData[match("ENSMUSG00000006356.10",rownames(MyRNAseqDataRNB3)),])
+```
+
+
+Ok. now we know "YES" is positive. Lets use biomart to convert ensemble id
+```{r}
+library(biomaRt)
+ensembl <- useEnsembl(biomart = "genes", dataset = "mmusculus_gene_ensembl")
+#listEnsembl()
+MyensembleGenes_orig=rownames(MyRNAseqDataRNBall)
+MyensembleGenes <- sapply(strsplit(MyensembleGenes_orig,"\\."), function(x) x[1])
+HUGOID = getBM(attributes = c('ensembl_gene_id', 'external_gene_name'), 
+              #filters = 'ensembl_gene_id', 
+              values = MyensembleGenes, 
+              mart = ensembl)
+Mygenescombined=cbind(MyensembleGenes_orig,MyensembleGenes)
+HUGOIDMATCHING=HUGOID[match(Mygenescombined[,2],HUGOID[,1]),]
+Mygenescombined=cbind(Mygenescombined,HUGOIDMATCHING)
+res <- results(dds, name="Regen_YES_vs_NO")
+res=cbind(res,Mygenescombined)
+write.table(res,"RNB1-4_DEseq2_Unlimited.txt")
+EnhancedVolcano(res,
+    lab = res$external_gene_name,
+    x = 'log2FoldChange',
+    y = 'padj',
+    pCutoff = 0.05)
+ 
+
+```
+
+Lets do same to the diff genes
+```{r}
+#resfinal=cbind(res,Mygenescombined[,4])
+#write.table(resfinal,'RNB1&2_DESEQ.txt')
+plot(resfinal$log2FoldChange,-log(resfinal$padj),log=c("y","x"))
+```
+
+Lets generate heatmap
+``` {r}
+#Sort
+Hugosdata=MyRNAseqDataRNBall
+res.ordered=res[order(res$padj),]
+
+#"shell", "quick", "radix"
+res.orderedFirst20=res.ordered[1:20,]
+res.orderedFirst200=res.ordered[1:200,]
+res.ordered$padj[is.na(res.ordered$padj)]<-1
+res.orderedAllsignificant=res.ordered[res.ordered$padj<0.05,]
+res.orderedFirst200_Neg=res.orderedFirst200[order(res.orderedFirst200$log2FoldChange, decreasing = FALSE, na.last = TRUE, method = c("auto")),]
+res.orderedAllsignificant_Neg=res.orderedAllsignificant[order(res.orderedAllsignificant$log2FoldChange, decreasing = FALSE, na.last = TRUE, method = c("auto")),]
+GeneofInterest=rownames(res.orderedAllsignificant_Neg)
+HugosdataWithFirstDEgenes=Hugosdata[match(GeneofInterest,rownames(Hugosdata)),]
+HugosdataWithFirstDEgenesMatrix=as.matrix(HugosdataWithFirstDEgenes)
+heatmap(HugosdataWithFirstDEgenesMatrix)
+RegenSamples=refsall[refsall$Regen=="YES",]
+NoRegenSamples=refsall[refsall$Regen=="NO",]
+RegenDE=as.matrix(HugosdataWithFirstDEgenes[,match(rownames(RegenSamples),names(HugosdataWithFirstDEgenes))])
+heatmap(RegenDE)
+
+NoRegenDE=as.matrix(HugosdataWithFirstDEgenes[,match(rownames(NoRegenSamples),names(HugosdataWithFirstDEgenes))])
+heatmap(NoRegenDE)
+
+#Negatives
+mean(RegenDE[1,])
+mean(NoRegenDE[1,])
+
+#Positives
+mean(RegenDE[nrow(RegenDE),])
+mean(NoRegenDE[nrow(NoRegenDE),])
+
+#Average Heatmap
+REG=apply(RegenDE,1,function(x) mean(x))
+NO=apply(NoRegenDE,1,function(x) mean(x))
+All.ave=as.matrix(cbind(REG,NO))
+heatmap(All.ave)
+
+```
+
+Lets remove genes with high standard deviation 
+```{r}
+RegenSTD=apply(RegenDE,1,function(x) sd(x))
+RegenSTD_Threshold=mean(RegenSTD)
+NoRegenSTD=apply(NoRegenDE,1,function(x) sd(x))
+NoRegenSTD_Threshold=mean(NoRegenSTD)
+
+RegenSTD_NoNoRegenGene=RegenSTD[NoRegenSTD<NoRegenSTD_Threshold]
+RegenSTD_FINAL=RegenSTD_NoNoRegenGene[RegenSTD_NoNoRegenGene<RegenSTD_Threshold]
+
+NoRegenSTD_NoRegenGene=NoRegenSTD[RegenSTD<RegenSTD_Threshold]
+NoRegenSTD_FINAL=NoRegenSTD_NoRegenGene[NoRegenSTD_NoRegenGene<NoRegenSTD_Threshold]
+
+RegenDE_GoodSTD=RegenDE[match(names(RegenSTD_FINAL),rownames(RegenDE)),]
+heatmap(RegenDE_GoodSTD)
+NoRegenDE_GoodSTD=NoRegenDE[match(names(NoRegenSTD_FINAL),rownames(NoRegenDE)),]
+heatmap(NoRegenDE_GoodSTD)
+res.orderedAllsignificant_GoodSTD=res.orderedAllsignificant[match(names(RegenSTD_FINAL),rownames(res.orderedAllsignificant)),]
+FINALExpression=All.ave[(match(names(RegenSTD_FINAL),rownames(All.ave))),]
+heatmap(FINALExpression)
+#Lets change
+GeneofInterest=Mygenescombined[match(rownames(FINALExpression),Mygenescombined[,1]),4]
+#GeneofInterest
+namestosave=rownames(FINALExpression)[is.na(GeneofInterest)]
+write.table(namestosave,"ENSEMBLEFIND.txt")
+
+```
+Make sure to get gene names and have second row to be the gene names(also make sure to make header)
+
+```{r}
+FoundGenenames=read.table("ENSEMBLEFIND.txt",header=TRUE)
+GeneofInterest[which(is.na(GeneofInterest))]=FoundGenenames[,2]
+FINALExpression_Genes=FINALExpression
+rownames(FINALExpression_Genes)=GeneofInterest
+heatmap(FINALExpression_Genes)
+```
+
+
+Ok Lets Try Seurat Method
+
+```{r}
+MyRNAseqDataRNBall_Noref=MyRNAseqDataRNBall[,grepl("Ref",names(MyRNAseqDataRNBall))==FALSE]
+refsall_Noref=refsall[grepl("Ref",rownames(refsall))==FALSE,]
+
+Hugosdata=MyRNAseqDataRNBall_Noref
+#Hugosdata=Hugosdata[match(rownames(FINALExpression),rownames(Hugosdata)),]
+HugosMeta=refsall_Noref
+#Remove sample with 0 read
+
+Hugosdata<-Hugosdata[-match("__alignment_not_unique",rownames(Hugosdata)),]
+Hugosdata<-Hugosdata[-match("__ambiguous",rownames(Hugosdata)),]
+Hugosdata<-Hugosdata[-match("__no_feature",rownames(Hugosdata)),]
+Hugosdata<-Hugosdata[-match("__not_aligned",rownames(Hugosdata)),]
+Hugosdata<-Hugosdata[-match("__too_low_aQual",rownames(Hugosdata)),]
+
+#HugosMeta=HugosMeta[-124,]
+
+
+OriginalIdentity=HugosMeta[match(colnames(Hugosdata),HugosMeta[,1]),2]
+Batch=HugosMeta[match(colnames(Hugosdata),HugosMeta[,1]),3]
+AnimalNumber=HugosMeta[match(colnames(Hugosdata),HugosMeta[,1]),4]
+#colnames(Hugosdata)=paste("PATCHseq-",colnames(Hugosdata))
+
+HugosDataObject=CreateSeuratObject(counts=Hugosdata)
+HugosDataObject$orig.ident=OriginalIdentity
+HugosDataObject$Batch=Batch
+HugosDataObject$AnimalNum=AnimalNumber
+HugosDataObject[["Percent"]]<-PercentageFeatureSet(HugosDataObject, pattern = "^MT-")
+experiment.aggregate<-HugosDataObject
+slotNames(experiment.aggregate)
+```
+
+
+## Some basic QA/QC of the metadata, print tables of the 5% quantiles.
+
+Show 5% quantiles for number of genes per cell per sample
+```{r quantiles_1, warning=FALSE,error=FALSE,message=FALSE}
+kable(do.call("cbind", tapply(experiment.aggregate$nFeature_RNA, 
+                      Idents(experiment.aggregate),quantile,probs=seq(0,1,0.05))),
+      caption = "5% Quantiles of Genes/Cell by Sample") %>% kable_styling()
+```

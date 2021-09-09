@@ -1,0 +1,186 @@
+---
+title: "DE2"
+author: "Hugo Kim"
+date: "9/4/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(scRNA.seq.funcs)
+library(edgeR)
+library(limma)
+library(MAST)
+library(ROCR)
+DE_Quality_AUC <- function(pVals, plot=TRUE) {
+    pVals <- pVals[names(pVals) %in% GroundTruth$DE | 
+                   names(pVals) %in% GroundTruth$notDE]
+    truth <- rep(1, times = length(pVals));
+    truth[names(pVals) %in% GroundTruth$DE] = 0;
+    pred <- ROCR::prediction(pVals, truth)
+    perf <- ROCR::performance(pred, "tpr", "fpr")
+    if (plot)
+      ROCR::plot(perf)
+    aucObj <- ROCR::performance(pred, "auc")
+    return(aucObj@y.values[[1]])
+}
+set.seed(1)
+```
+
+## Lets Do Edge R
+
+
+We’ve already used edgeR for differential expression in Chapter ??. edgeR is based on a negative binomial model of gene expression and uses a generalized linear model (GLM) framework, the enables us to include other factors such as batch to the model.
+
+edgeR, like many DE methods work best with pre-filtering of very lowly experessed genes. Here, we will keep genes with non-zero expression in at least 30 cells.
+
+
+```{r base setup}
+#Remove Reference
+
+#MyRNAseqDataRNBall_Noref=MyRNAseqDataRNBall[,grepl("Ref",names(MyRNAseqDataRNBall))==FALSE]
+#refsall_Noref=refsall[grepl("Ref",rownames(refsall))==FALSE,]
+
+counts_mat=Hugosdata
+group=refsall_Noref[,2]
+batch=refsall_Noref[,3]
+
+```
+
+Lets run edgeR
+```{r edgeR}
+keep_gene <- (rowSums(counts_mat > 0) > 29.5 & rowMeans(counts_mat) > 0.2)
+table(keep_gene)
+dge <- DGEList(
+    counts = counts_mat[keep_gene,], 
+    norm.factors = rep(1, length(counts_mat[1,])), 
+    group = group
+)
+dge$counts=dge$counts[,dge$samples$lib.size>1000] #too low reads sample removal
+dge$samples=dge$samples[dge$samples$lib.size>1000,] #too low reads sample removal
+group=dge$samples[,1]
+counts_mat=dge$counts
+batch=batch[match(names(group),rownames(refsall_Noref))]
+names(group)=rownames(dge$samples)
+group_edgeR <- factor(group)
+design <- model.matrix(~ group_edgeR)
+dge <- calcNormFactors(dge, method = "TMM")
+summary(dge$samples$norm.factors)
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+dge <- estimateDisp(dge, design = design)
+plotBCV(dge)
+fit <- glmQLFit(dge, design)
+res <- glmQLFTest(fit)
+pVals <- res$table[,4]
+names(pVals) <- rownames(res$table)
+
+pVals <- p.adjust(pVals, method = "fdr")
+MyensembleGenes <- sapply(strsplit(names(pVals),"\\."), function(x) x[1])
+symb <- mapIds(org.Mm.eg.db, keys=MyensembleGenes, keytype="ENSEMBL", column="SYMBOL")
+names(pVals) <- uniquifyFeatureNames(names(pVals), symb)
+EdgeRfoldchange=res$table$logFC[pVals<0.05]
+EdgeRpVals=pVals[pVals<0.05]
+EdgeRresult=cbind(EdgeRfoldchange,EdgeRpVals)
+EdgeRresult=EdgeRresult[order(EdgeRpVals),]
+nrow(EdgeRresult)
+EdgeRresult_Refseq=EdgeRresult[grepl("ENSMUS",rownames(EdgeRresult))==FALSE,]
+write.table(EdgeRresult,"EdgeRResult_RNB1-4.txt")
+#DE_Quality_AUC(pVals)
+```
+
+MAST
+MAST is based on a zero-inflated negative binomial model. It tests for differential expression using a hurdle model to combine tests of discrete (0 vs not zero) and continuous (non-zero values) aspects of gene expression. Again this uses a linear modelling framework to enable complex models to be considered.
+
+```{r}
+log_counts <- log2(counts_mat + 1)
+fData <- data.frame(names = rownames(log_counts))
+rownames(fData) <- rownames(log_counts);
+cData <- data.frame(cond = group)
+rownames(cData) <- colnames(log_counts)
+
+obj <- FromMatrix(as.matrix(log_counts), cData, fData)
+colData(obj)$cngeneson <- scale(colSums(assay(obj) > 0))
+cond <- factor(colData(obj)$cond)
+
+# Model expression as function of condition & number of detected genes
+zlmCond <- zlm(~ cond + cngeneson, obj) 
+
+summaryCond <- summary(zlmCond, doLRT="condYES")
+summaryDt <- summaryCond$datatable
+
+summaryDt <- as.data.frame(summaryDt)
+pVals <- unlist(summaryDt[summaryDt$component == "H",4]) # H = hurdle model
+names(pVals) <- unlist(summaryDt[summaryDt$component == "H",1])
+pVals <- p.adjust(pVals, method = "fdr")
+MyensembleGenes <- sapply(strsplit(names(pVals),"\\."), function(x) x[1])
+symb <- mapIds(org.Mm.eg.db, keys=MyensembleGenes, keytype="ENSEMBL", column="SYMBOL")
+names(pVals) <- uniquifyFeatureNames(names(pVals), symb)
+pVals=pVals[order(pVals)]
+```
+
+12.2.6 limma
+The limma package implements Empirical Bayes linear models for identifying differentially expressed genes. Originally developed more microarray data, the extended limma-voom method has proven to be a very fast and accurate DE method for bulk RNA-seq data. With its speed and flexibility, limma also performed well for DE analysis of scRNA-seq data in the benchmarking study mentioned earlier.
+
+Here we demonstrate how to use limma for DE analysis on these data.
+
+```{r} 
+library(limma)
+## we can use the same design matrix structure as for edgeR
+design <- model.matrix(~ group_edgeR)
+colnames(design)
+## apply the same filtering of low-abundance genes as for edgeR
+keep_gene <- (rowSums(counts_mat > 0) > 29.5 & rowMeans(counts_mat) > 0.2)
+summary(keep_gene)
+y <- counts_mat[keep_gene, ]
+v <- voom(y, design)
+fit <- lmFit(v, design)
+res2 <- eBayes(fit)
+topTable(res2)
+pVals <- res2$p.value[,2]
+names(pVals) <- rownames(y)
+pVals <- p.adjust(pVals, method = "fdr")
+MyensembleGenes <- sapply(strsplit(names(pVals),"\\."), function(x) x[1])
+symb <- mapIds(org.Mm.eg.db, keys=MyensembleGenes, keytype="ENSEMBL", column="SYMBOL")
+names(pVals) <- uniquifyFeatureNames(names(pVals), symb)
+pVals=pVals[order(pVals)]
+pVals[grepl("Eef",names(pVals))]
+limmapVals=pVals[pVals<0.05]
+```
+
+12.2.7 Pseudobulk
+In this approach, we sum counts across cells from the same condition (here we will use batch within individual) to create “pseudobulk” samples that we will analyse for DE the way we would analyse bulk RNA-seq data. Research continues on benchmarking pseudobulk and single-cell DE approaches, but the suggestion from certain (we think reliable) sources is that pseudobulk approaches are more robust and accurate (and typically very fast) in a range of settings where we’re interested in differences between groups or conditions rather than individual cells.
+
+``` {r}
+
+summed <- scater::sumCountsAcrossCells(counts_mat, factor(batch))
+head(summed)
+summed=summed@assays@data$sum
+
+y <- DGEList(summed)
+y <- y[aveLogCPM(y) > 1,]
+y <- calcNormFactors(y)
+individ = colnames(summed)
+#individ <- gsub("\\.r[123]", "", colnames(summed))
+design <- model.matrix(~individ)
+head(design)
+y <- estimateDisp(y, design)
+summary(y$trended.dispersion)
+#plotBCV(y)
+fit <- glmQLFit(y)
+res <- glmQLFTest(fit)
+summary(decideTests(res))
+pVals <- res$table[,4]
+names(pVals) <- rownames(res$table)
+pVals <- p.adjust(pVals, method = "fdr")
+MyensembleGenes <- sapply(strsplit(names(pVals),"\\."), function(x) x[1])
+symb <- mapIds(org.Mm.eg.db, keys=MyensembleGenes, keytype="ENSEMBL", column="SYMBOL")
+names(pVals) <- uniquifyFeatureNames(names(pVals), symb)
+pVals=pVals[order(pVals)]
+DE_Quality_AUC(pVals)
+```

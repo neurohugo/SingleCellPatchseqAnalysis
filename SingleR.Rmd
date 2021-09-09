@@ -1,0 +1,108 @@
+---
+title: "SingleCellR"
+author: "Hugo Kim"
+date: "9/3/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(org.Mm.eg.db)
+library(scater)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r cars}
+library(celldex)
+hpca.se <-  MouseRNAseqData()
+hpca.se
+## class: SummarizedExperiment 
+## dim: 19363 713 
+## metadata(0):
+## assays(1): logcounts
+## rownames(19363): A1BG A1BG-AS1 ... ZZEF1 ZZZ3
+## rowData names(0):
+## colnames(713): GSM112490 GSM112491 ... GSM92233 GSM92234
+## colData names(3): label.main label.fine label.ont
+
+```
+
+## Including Plots
+
+Samples to compare
+Reference	Taxonomy	Part	Number	Call
+Campbell et al. (2017)	Mouse	brain	21086	CampbellBrainData()
+Chen et al. (2017)	Mouse	brain	14437	ChenBrainData()
+Jessa et al. (2019)	Mouse	brain	61595	JessaBrainData()
+Marques et al. (2016)	Mouse	brain	5069	MarquesBrainData()
+Romanov et al. (2017)	Mouse	brain	2881	RomanovBrainData()
+Usoskin et al. (2015)	Mouse	brain	864	UsoskinBrainData()
+Tasic et al. (2016)	Mouse	brain	1809	TasicBrainData()
+Zeisel et al. (2015)	Mouse	brain	3005	ZeiselBrainData()
+Hu et al. (2017)	Mouse	cortex	48000	HuCortexData()
+
+```{r pressure, echo=FALSE}
+library(scRNAseq)
+Campbell2017<-CampbellBrainData()
+Chen2017<-ChenBrainData()
+Jessa2019<-JessaBrainData()
+Marques2016<-MarquesBrainData()
+Romanov2017<-RomanovBrainData()
+Usoskin2015<-UsoskinBrainData()
+Tasic2016<-TasicBrainData()
+Zeisel2015<-ZeiselBrainData()
+Hu2017<-HuCortexData()
+
+# One should normally do cell-based quality control at this point, but for
+# brevity's sake, we will just remove the unlabelled libraries here.
+sceM <- sceM[,!is.na(sceM$label)]
+
+# SingleR() expects reference datasets to be normalized and log-transformed.
+library(scuttle)
+sceM <- logNormCounts(sceM)
+```
+
+next
+
+```{r main}
+library(SingleR)
+
+experiment.Scobject=as.SingleCellExperiment(experiment.merged) #Convert to single cell experiment
+MyensembleGenes <- sapply(strsplit(rownames(experiment.Scobject),"\\."), function(x) x[1])
+symb <- mapIds(org.Mm.eg.db, keys=MyensembleGenes, keytype="ENSEMBL", column="SYMBOL")
+rownames(experiment.Scobject) <- uniquifyFeatureNames(rownames(experiment.Scobject), symb)
+pred.hesc <- SingleR(test = experiment.Scobject, ref = hpca.se, assay.type.test=1,
+    labels = hpca.se$label.main)
+#pred.grun <- SingleR(test=experiment.Scobject, ref=hpca.se, labels=pred.hesc$label, de.method="wilcox")
+plotScoreHeatmap(pred.hesc)
+
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+
+```{r}
+plotDeltaDistribution(pred.hesc, ncol = 3)
+summary(is.na(pred.hesc$pruned.labels))
+all.markers <- metadata(pred.hesc)$de.genes
+#sceG$labels <- pred.hesc$labels
+experiment.merged$newlabel=pred.hesc$pruned.labels
+#
+DimPlot(object = experiment.merged, group.by="newlabel", pt.size=0.5, reduction = "umap", label = T)
+
+```
+Compare with others
+```{r}
+plotDeltaDistribution(pred.hesc, ncol = 3)
+summary(is.na(pred.hesc$pruned.labels))
+all.markers <- metadata(pred.hesc)$de.genes
+#sceG$labels <- pred.hesc$labels
+library(scater)
+library(SingleCellExperiment)
+
+```
+
