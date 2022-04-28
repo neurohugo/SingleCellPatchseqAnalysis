@@ -1,0 +1,337 @@
+---
+title: "Granett"
+author: "Hugo Kim"
+date: "9/14/2021"
+output: html_document
+---
+installing
+```{r}
+knitr::opts_chunk$set(echo = TRUE)
+# First install Bioconductor and Monocle
+if (!requireNamespace("BiocManager"))
+    install.packages("BiocManager")
+
+BiocManager::install()
+BiocManager::install(c("monocle"))
+
+# Next install a few more dependencies
+BiocManager::install(c('DelayedArray', 'DelayedMatrixStats', 'org.Hs.eg.db', 'org.Mm.eg.db'))
+install.packages("devtools")
+devtools::install_github("cole-trapnell-lab/garnett")
+```
+
+```{r}
+library(garnett)
+library(org.Hs.eg.db)
+library(org.Mm.eg.db)
+library(ggplot2)
+library(Seurat)
+library(scuttle)
+```
+
+Now lets see
+
+```{r classifier}
+classifier <- readRDS("mmBrain_20191017.RDS")
+pbmc_classifier <- readRDS("hsPBMC_20191017.RDS")
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+# load in the data
+# NOTE: the 'system.file' file name is only necessary to read in
+# included package data
+#
+mat <- Matrix::readMM(system.file("extdata", "exprs_sparse.mtx", package = "garnett"))
+fdata <- read.table(system.file("extdata", "fdata.txt", package = "garnett"))
+pdata <- read.table(system.file("extdata", "pdata.txt", package = "garnett"),
+                    sep="\t")
+row.names(mat) <- row.names(fdata)
+colnames(mat) <- row.names(pdata)
+
+# create a new CDS object
+pd <- new("AnnotatedDataFrame", data = pdata)
+fd <- new("AnnotatedDataFrame", data = fdata)
+pbmc_cds <- newCellDataSet(as(mat, "dgCMatrix"),
+                             phenoData = pd,
+                             featureData = fd)
+
+# generate size factors for normalization later
+pbmc_cds <- estimateSizeFactors(pbmc_cds)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+```{r}
+
+
+pbmc_cds <- classify_cells(pbmc_cds, pbmc_classifier,
+                           db = org.Hs.eg.db,
+                           cluster_extend = TRUE,
+                           cds_gene_id_type = "SYMBOL")
+
+
+head(pData(pbmc_cds))
+table(pData(pbmc_cds)$cell_type)
+table(pData(pbmc_cds)$cluster_ext_type)
+
+
+qplot(tsne_1, tsne_2, color = cell_type, data = pData(pbmc_cds)) + theme_bw()
+
+qplot(tsne_1, tsne_2, color = cluster_ext_type, data = pData(pbmc_cds)) + theme_bw()
+
+```
+
+
+
+
+
+``` {r}
+#load("HugosSeurat.Rdata")
+#load("HugosSeuratfinal.Rdata")
+Hugos.seurat=experiment.merged
+Hugo_cds <-as.CellDataSet(Hugos.seurat)
+Hugo_cds <- estimateSizeFactors(Hugo_cds)
+#Hugo_cds <- classify_cells(Hugo_cds, classifier,
+#                           db = org.Mm.eg.db,
+#                           cluster_extend = TRUE,
+#                           cds_gene_id_type = "SYMBOL")
+
+MyensembleGenes <- sapply(strsplit(rownames(Hugo_cds@featureData@data),"\\."), function(x) x[1])
+rownames(Hugo_cds@featureData@data) <- uniquifyFeatureNames(rownames(Hugo_cds@featureData@data), MyensembleGenes)
+rownames(Hugo_cds@assayData$exprs)<-rownames(Hugo_cds@featureData@data) 
+
+
+
+Hugo_cds <- classify_cells(Hugo_cds, classifier,
+                           db = org.Mm.eg.db,
+                           cluster_extend = TRUE,
+                           cds_gene_id_type = "ENSEMBL")
+
+head(pData(Hugo_cds))
+table(pData(Hugo_cds)$cell_type)
+table(pData(Hugo_cds)$cluster_ext_type)
+
+Hugo_cds@phenoData$tsne_1=Hugos.seurat@reductions$tsne@cell.embeddings[,1]
+Hugo_cds@phenoData$tsne_2=Hugos.seurat@reductions$tsne@cell.embeddings[,2]
+qplot(tsne_1, tsne_2, color = samplecluster, data = pData(Hugo_cds)) + theme_bw()
+
+qplot(tsne_1, tsne_2, color = orig.ident, data = pData(Hugo_cds)) + theme_bw()
+qplot(tsne_1, tsne_2, color = cell_type, data = pData(Hugo_cds)) + theme_bw()
+
+qplot(tsne_1, tsne_2, color = cluster_ext_type, data = pData(Hugo_cds)) + theme_bw()
+
+
+```
+
+
+```{r}
+Campbell_cds <-as.CellDataSet(Campbell.seurat)
+Hu_cds <- estimateSizeFactors(Hu_cds)
+Hu_cds <- classify_cells(Hu_cds, classifier,
+                          db = org.Mm.eg.db,
+                           cluster_extend = TRUE,
+                           cds_gene_id_type = "SYMBOL")
+
+read(pData(Hugo_cds))
+table(pData(Hugo_cds)$cell_type)
+table(pData(Hugo_cds)$cluster_ext_type)
+
+Hugo_cds@phenoData$tsne_1=Hugos.seurat@reductions$tsne@cell.embeddings[,1]
+Hugo_cds@phenoData$tsne_2=Hugos.seurat@reductions$tsne@cell.embeddings[,2]
+qplot(tsne_1, tsne_2, color = cell_type, data = pData(Hugo_cds)) + theme_bw()
+
+qplot(tsne_1, tsne_2, color = cluster_ext_type, data = pData(Hugo_cds)) + theme_bw()
+
+```
+Now lets teach them
+```{r}
+marker_file_path <- "/Users/hugokim/Documents/Hugos Code/HugoSingleCell/RegenMarkerfile_NEW.txt"
+#marker_file_path <-"/projects/ps-zhenglab/Hugo/SequencingData/HugosData/Analysis/SingleCellAnalysis/RegenMarkerfile.txt"
+#MyensembleGenes <- sapply(strsplit(rownames(Hugo_cds@featureData@data),"\\."), function(x) x[1])
+#symb <- mapIds(org.Mm.eg.db, keys=MyensembleGenes, keytype="ENSEMBL", column="SYMBOL")
+#rownames(Hugo_cds@featureData@data) <- uniquifyFeatureNames(rownames(Hugo_cds@featureData@data), symb)
+
+marker_check <- check_markers(Hugo_cds, marker_file_path,
+                              db=org.Mm.eg.db,
+                              cds_gene_id_type = "ENSEMBL",
+                              marker_file_gene_id_type = "SYMBOL")
+
+plot_markers(marker_check)
+```
+Now lets train it
+```{r}
+marker_file_path <- "/Users/hugokim/Documents/Hugos Code/HugoSingleCell/RegenMarkerfile_NEW.txt"
+Hugo_classifier <- train_cell_classifier(cds = Hugo_cds,
+                                         marker_file = marker_file_path,
+                                         db=org.Mm.eg.db,
+                                         cds_gene_id_type = "ENSEMBL",
+                                         num_unknown = 10,
+                                         marker_file_gene_id_type = "SYMBOL")
+
+
+
+feature_genes <- get_feature_genes(Hugo_classifier,
+                                   node = "root",
+                                   db = org.Mm.eg.db)
+head(feature_genes)
+
+save(Hugo_classifier, file = "Hugo_Regen_Classifier.Rds")
+
+```
+
+Lets see
+
+```{r}
+Hugo_cds <- classify_cells(Hugo_cds, Hugo_classifier,
+                           db = org.Mm.eg.db,
+                           cluster_extend = TRUE,
+                           cds_gene_id_type = "ENSEMBL")
+
+head(pData(Hugo_cds))
+table(pData(Hugo_cds)$cell_type)
+table(pData(Hugo_cds)$cluster_ext_type)
+
+Hugo_cds@phenoData$tsne_1=Hugos.seurat@reductions$tsne@cell.embeddings[,1]
+Hugo_cds@phenoData$tsne_2=Hugos.seurat@reductions$tsne@cell.embeddings[,2]
+qplot(tsne_1, tsne_2, color = cell_type, data = pData(Hugo_cds)) + theme_bw()
+
+qplot(tsne_1, tsne_2, color = cluster_ext_type, data = pData(Hugo_cds)) + theme_bw()
+
+qplot(tsne_1, tsne_2, color = samplecluster, data = pData(Hugo_cds)) + theme_bw()
+```
+
+Other peoples data
+
+
+```{r}
+load("RomanovSeurat.Rdata")
+Romanov_cds <-as.CellDataSet(Romanov.seurat)
+Romanov_cds <- estimateSizeFactors(Romanov_cds)
+Romanov_cds <- classify_cells(Romanov_cds, classifier,
+                          db = org.Mm.eg.db,
+                           cluster_extend = TRUE,
+                           cds_gene_id_type = "SYMBOL")
+head(pData(Romanov_cds))
+table(pData(Romanov_cds)$cell_type)
+table(pData(Romanov_cds)$cluster_ext_type)
+
+Romanov_cds@phenoData$tsne_1=Romanov.seurat@reductions$tsne@cell.embeddings[,1]
+Romanov_cds@phenoData$tsne_2=Romanov.seurat@reductions$tsne@cell.embeddings[,2]
+qplot(tsne_1, tsne_2, color = cell_type, data = pData(Romanov_cds)) + theme_bw()
+
+qplot(tsne_1, tsne_2, color = cluster_ext_type, data = pData(Romanov_cds)) + theme_bw()
+Romanov_cds <- classify_cells(Romanov_cds, Hugo_classifier,
+                           db = org.Mm.eg.db,
+                           cluster_extend = TRUE,
+                           cds_gene_id_type = "SYMBOL")
+
+
+
+#Usoskin
+load("UsoskinSeurat.Rdata")
+Usoskin_cds <-as.CellDataSet(Usoskin.seurat)
+Usoskin_cds <- estimateSizeFactors(Usoskin_cds)
+
+Usoskin_cds <- classify_cells(Usoskin_cds, classifier,
+                          db = org.Mm.eg.db,
+                           cluster_extend = TRUE,
+                           cds_gene_id_type = "SYMBOL")
+head(pData(Usoskin_cds))
+table(pData(Usoskin_cds)$cell_type)
+table(pData(Usoskin_cds)$cluster_ext_type)
+Usoskin_cds@phenoData$tsne_1=Usoskin.seurat@reductions$tsne@cell.embeddings[,1]
+Usoskin_cds@phenoData$tsne_2=Usoskin.seurat@reductions$tsne@cell.embeddings[,2]
+qplot(tsne_1, tsne_2, color = cell_type, data = pData(Usoskin_cds)) + theme_bw()
+qplot(tsne_1, tsne_2, color = cluster_ext_type, data = pData(Usoskin_cds)) + theme_bw()
+Usoskin_cds <- classify_cells(Usoskin_cds, Hugo_classifier,
+                           db = org.Mm.eg.db,
+                           cluster_extend = TRUE,
+                           cds_gene_id_type = "SYMBOL")
+
+qplot(tsne_1, tsne_2, color = cell_type, data = pData(Usoskin_cds)) + theme_bw()
+qplot(tsne_1, tsne_2, color = cluster_ext_type, data = pData(Usoskin_cds)) + theme_bw()
+
+#Chen
+load("ChenSeurat.Rdata")
+Chen_cds <-as.CellDataSet(Chen.seurat)
+Chen_cds <- estimateSizeFactors(Chen_cds)
+
+Chen_cds <- classify_cells(Chen_cds, classifier,
+                          db = org.Mm.eg.db,
+                           cluster_extend = TRUE,
+                           cds_gene_id_type = "SYMBOL")
+head(pData(Chen_cds))
+table(pData(Chen_cds)$cell_type)
+table(pData(Chen_cds)$cluster_ext_type)
+Chen_cds@phenoData$tsne_1=Chen.seurat@reductions$tsne@cell.embeddings[,1]
+Chen_cds@phenoData$tsne_2=Chen.seurat@reductions$tsne@cell.embeddings[,2]
+qplot(tsne_1, tsne_2, color = cell_type, data = pData(Chen_cds)) + theme_bw()
+qplot(tsne_1, tsne_2, color = cluster_ext_type, data = pData(Chen_cds)) + theme_bw()
+
+Chen_cds <- classify_cells(Chen_cds, Hugo_classifier,
+                           db = org.Mm.eg.db,
+                           cluster_extend = TRUE,
+                           cds_gene_id_type = "SYMBOL")
+
+qplot(tsne_1, tsne_2, color = cell_type, data = pData(Chen_cds)) + theme_bw()
+qplot(tsne_1, tsne_2, color = cluster_ext_type, data = pData(Chen_cds)) + theme_bw()
+save(Chen_cds,file="ChenCDS.Rdata")
+
+#Campbell
+load("CampbellSeurat.Rdata")
+Campbell_cds <-as.CellDataSet(Campbell.seurat)
+Campbell_cds <- estimateSizeFactors(Campbell_cds)
+
+
+load("CampbellCDS.Rdata")
+Campbell_cds <- classify_cells(Campbell_cds, classifier,
+                          db = org.Mm.eg.db,
+                           cluster_extend = TRUE,
+                           cds_gene_id_type = "SYMBOL")
+head(pData(Campbell_cds))
+table(pData(Campbell_cds)$cell_type)
+table(pData(Campbell_cds)$cluster_ext_type)
+Campbell_cds@phenoData$tsne_1=Campbell.seurat@reductions$tsne@cell.embeddings[,1]
+Campbell_cds@phenoData$tsne_2=Campbell.seurat@reductions$tsne@cell.embeddings[,2]
+qplot(tsne_1, tsne_2, color = cell_type, data = pData(Campbell_cds)) + theme_bw()
+qplot(tsne_1, tsne_2, color = cluster_ext_type, data = pData(Campbell_cds)) + theme_bw()
+
+Campbell_cds <- classify_cells(Campbell_cds, Hugo_classifier,
+                           db = org.Mm.eg.db,
+                           cluster_extend = TRUE,
+                           cds_gene_id_type = "SYMBOL")
+
+qplot(tsne_1, tsne_2, color = cell_type, data = pData(Campbell_cds)) + theme_bw()
+qplot(tsne_1, tsne_2, color = cluster_ext_type, data = pData(Campbell_cds)) + theme_bw()
+save(Campbell_cds,file="CampbellCDS.Rdata")
+#Marques
+load("MarquesSeurat.Rdata")
+Marques_cds <-as.CellDataSet(Marques.seurat)
+Marques_cds <- estimateSizeFactors(Marques_cds)
+
+Marques_cds<- classify_cells(Marques_cds, classifier,
+                          db = org.Mm.eg.db,
+                           cluster_extend = TRUE,
+                           cds_gene_id_type = "SYMBOL")
+head(pData(Marques_cds))
+table(pData(Marques_cds)$cell_type)
+table(pData(Marques_cds)$cluster_ext_type)
+Marques_cds@phenoData$tsne_1=Marques.seurat@reductions$tsne@cell.embeddings[,1]
+Marques_cds@phenoData$tsne_2=Marques.seurat@reductions$tsne@cell.embeddings[,2]
+
+qplot(tsne_1, tsne_2, color = cell_type, data = pData(Marques_cds)) + theme_bw()
+qplot(tsne_1, tsne_2, color = cluster_ext_type, data = pData(Marques_cds)) + theme_bw()
+Marques_cds<- classify_cells(Marques_cds, Hugo_classifier,
+                          db = org.Mm.eg.db,
+                           cluster_extend = TRUE,
+                           cds_gene_id_type = "SYMBOL")
+
+qplot(tsne_1, tsne_2, color = cell_type, data = pData(Marques_cds)) + theme_bw()
+qplot(tsne_1, tsne_2, color = cluster_ext_type, data = pData(Marques_cds)) + theme_bw()
+
+
+save(Marques_cds,file="MarquesCDS.Rdata")
+```
