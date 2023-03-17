@@ -1,0 +1,1074 @@
+---
+title: "Granett"
+author: "Hugo Kim"
+date: "9/14/2021"
+output: html_document
+---
+installing
+```{r}
+knitr::opts_chunk$set(echo = TRUE)
+# First install Bioconductor and Monocle
+if (!requireNamespace("BiocManager"))
+    install.packages("BiocManager")
+
+BiocManager::install()
+BiocManager::install(c("monocle"))
+
+# Next install a few more dependencies
+BiocManager::install(c('DelayedArray', 'DelayedMatrixStats', 'org.Hs.eg.db', 'org.Mm.eg.db'))
+install.packages("devtools")
+devtools::install_github("cole-trapnell-lab/garnett")
+```
+
+```{r}
+library(garnett)
+library(org.Hs.eg.db)
+library(org.Mm.eg.db)
+library(ggplot2)
+library(Seurat)
+library(scuttle)
+```
+
+Now lets see
+
+```{r classifier}
+classifier <- readRDS("mmBrain_20191017.RDS")
+pbmc_classifier <- readRDS("hsPBMC_20191017.RDS")
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+# load in the data
+# NOTE: the 'system.file' file name is only necessary to read in
+# included package data
+#
+mat <- Matrix::readMM(system.file("extdata", "exprs_sparse.mtx", package = "garnett"))
+fdata <- read.table(system.file("extdata", "fdata.txt", package = "garnett"))
+pdata <- read.table(system.file("extdata", "pdata.txt", package = "garnett"),
+                    sep="\t")
+row.names(mat) <- row.names(fdata)
+colnames(mat) <- row.names(pdata)
+
+# create a new CDS object
+pd <- new("AnnotatedDataFrame", data = pdata)
+fd <- new("AnnotatedDataFrame", data = fdata)
+pbmc_cds <- newCellDataSet(as(mat, "dgCMatrix"),
+                             phenoData = pd,
+                             featureData = fd)
+
+# generate size factors for normalization later
+pbmc_cds <- estimateSizeFactors(pbmc_cds)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+```{r}
+
+
+pbmc_cds <- classify_cells(pbmc_cds, pbmc_classifier,
+                           db = org.Hs.eg.db,
+                           cluster_extend = TRUE,
+                           cds_gene_id_type = "SYMBOL")
+
+
+head(pData(pbmc_cds))
+table(pData(pbmc_cds)$cell_type)
+table(pData(pbmc_cds)$cluster_ext_type)
+
+
+qplot(tsne_1, tsne_2, color = cell_type, data = pData(pbmc_cds)) + theme_bw()
+
+qplot(tsne_1, tsne_2, color = cluster_ext_type, data = pData(pbmc_cds)) + theme_bw()
+
+```
+
+
+
+
+
+``` {r}
+#load("HugosSeurat.Rdata")
+#load("HugosSeuratfinal.Rdata")
+Hugos.seurat=experiment.merged
+Hugo_cds <-as.CellDataSet(Hugos.seurat)
+Hugo_cds <- estimateSizeFactors(Hugo_cds)
+#Hugo_cds <- classify_cells(Hugo_cds, classifier,
+#                           db = org.Mm.eg.db,
+#                           cluster_extend = TRUE,
+#                           cds_gene_id_type = "SYMBOL")
+
+MyensembleGenes <- sapply(strsplit(rownames(Hugo_cds@featureData@data),"\\."), function(x) x[1])
+rownames(Hugo_cds@featureData@data) <- uniquifyFeatureNames(rownames(Hugo_cds@featureData@data), MyensembleGenes)
+rownames(Hugo_cds@assayData$exprs)<-rownames(Hugo_cds@featureData@data) 
+
+
+
+Hugo_cds <- classify_cells(Hugo_cds, classifier,
+                           db = org.Mm.eg.db,
+                           cluster_extend = TRUE,
+                           cds_gene_id_type = "ENSEMBL")
+
+head(pData(Hugo_cds))
+table(pData(Hugo_cds)$cell_type)
+table(pData(Hugo_cds)$cluster_ext_type)
+
+Hugo_cds@phenoData$tsne_1=Hugos.seurat@reductions$tsne@cell.embeddings[,1]
+Hugo_cds@phenoData$tsne_2=Hugos.seurat@reductions$tsne@cell.embeddings[,2]
+qplot(tsne_1, tsne_2, color = samplecluster, data = pData(Hugo_cds)) + theme_bw()
+
+qplot(tsne_1, tsne_2, color = orig.ident, data = pData(Hugo_cds)) + theme_bw()
+qplot(tsne_1, tsne_2, color = cell_type, data = pData(Hugo_cds)) + theme_bw()
+
+qplot(tsne_1, tsne_2, color = cluster_ext_type, data = pData(Hugo_cds)) + theme_bw()
+
+
+```
+
+
+```{r}
+Campbell_cds <-as.CellDataSet(Campbell.seurat)
+Hu_cds <- estimateSizeFactors(Hu_cds)
+Hu_cds <- classify_cells(Hu_cds, classifier,
+                          db = org.Mm.eg.db,
+                           cluster_extend = TRUE,
+                           cds_gene_id_type = "SYMBOL")
+
+read(pData(Hugo_cds))
+table(pData(Hugo_cds)$cell_type)
+table(pData(Hugo_cds)$cluster_ext_type)
+
+Hugo_cds@phenoData$tsne_1=Hugos.seurat@reductions$tsne@cell.embeddings[,1]
+Hugo_cds@phenoData$tsne_2=Hugos.seurat@reductions$tsne@cell.embeddings[,2]
+qplot(tsne_1, tsne_2, color = cell_type, data = pData(Hugo_cds)) + theme_bw()
+
+qplot(tsne_1, tsne_2, color = cluster_ext_type, data = pData(Hugo_cds)) + theme_bw()
+
+```
+Now lets teach them
+```{r}
+marker_file_path <- "/Users/hugokim/Documents/Hugos Code/HugoSingleCell/RegenMarkerfile_NEW.txt"
+#marker_file_path <-"/projects/ps-zhenglab/Hugo/SequencingData/HugosData/Analysis/SingleCellAnalysis/RegenMarkerfile.txt"
+#MyensembleGenes <- sapply(strsplit(rownames(Hugo_cds@featureData@data),"\\."), function(x) x[1])
+#symb <- mapIds(org.Mm.eg.db, keys=MyensembleGenes, keytype="ENSEMBL", column="SYMBOL")
+#rownames(Hugo_cds@featureData@data) <- uniquifyFeatureNames(rownames(Hugo_cds@featureData@data), symb)
+
+marker_check <- check_markers(Hugo_cds, marker_file_path,
+                              db=org.Mm.eg.db,
+                              cds_gene_id_type = "ENSEMBL",
+                              marker_file_gene_id_type = "SYMBOL")
+
+plot_markers(marker_check)
+```
+Now lets train it
+```{r}
+marker_file_path <- "/Users/hugokim/Documents/Hugos Code/HugoSingleCell/RegenMarkerfile_NEW.txt"
+Hugo_classifier <- train_cell_classifier(cds = Hugo_cds,
+                                         marker_file = marker_file_path,
+                                         db=org.Mm.eg.db,
+                                         cds_gene_id_type = "ENSEMBL",
+                                         num_unknown = 10,
+                                         marker_file_gene_id_type = "SYMBOL")
+
+
+
+feature_genes <- get_feature_genes(Hugo_classifier,
+                                   node = "root",
+                                   db = org.Mm.eg.db)
+head(feature_genes)
+
+save(Hugo_classifier, file = "Hugo_Regen_Classifier.Rds")
+
+```
+
+Lets see
+
+```{r}
+Hugo_cds <- classify_cells(Hugo_cds, Hugo_classifier,
+                           db = org.Mm.eg.db,
+                           cluster_extend = TRUE,
+                           cds_gene_id_type = "ENSEMBL")
+
+head(pData(Hugo_cds))
+table(pData(Hugo_cds)$cell_type)
+table(pData(Hugo_cds)$cluster_ext_type)
+
+Hugo_cds@phenoData$tsne_1=Hugos.seurat@reductions$tsne@cell.embeddings[,1]
+Hugo_cds@phenoData$tsne_2=Hugos.seurat@reductions$tsne@cell.embeddings[,2]
+qplot(tsne_1, tsne_2, color = cell_type, data = pData(Hugo_cds)) + theme_bw()
+
+qplot(tsne_1, tsne_2, color = cluster_ext_type, data = pData(Hugo_cds)) + theme_bw()
+
+qplot(tsne_1, tsne_2, color = samplecluster, data = pData(Hugo_cds)) + theme_bw()
+```
+
+Other peoples data
+
+
+```{r}
+#Romanov 2007
+load("RomanovSeurat.Rdata")
+Romanov_cds <-as.CellDataSet(Romanov.seurat)
+
+Romanov.seurat_Neuron=subset(Romanov.seurat, subset=level1.class=="neurons")
+Romanov_Neuron_cds <-as.CellDataSet(Romanov.seurat_Neuron)
+#Romanov_cds <- estimateSizeFactors(Romanov_cds)
+#Romanov_cds <- classify_cells(Romanov_cds, classifier,
+#                          db = org.Mm.eg.db,
+#                           cluster_extend = TRUE,
+#                           cds_gene_id_type = "SYMBOL")
+#head(pData(Romanov_cds))
+#table(pData(Romanov_cds)$celltype)
+#table(pData(Romanov_cds)$cluster_ext_type)
+
+#Romanov_cds@phenoData$tsne_1=Romanov.seurat@reductions$tsne@cell.embeddings[,1]
+#Romanov_cds@phenoData$tsne_2=Romanov.seurat@reductions$tsne@cell.embeddings[,2]
+
+#Romanov_cds@phenoData@data$celltype=Romanov_cds@phenoData@data$cluster_ext_type
+
+
+#qplot(tsne_1, tsne_2, color = cluster_ext_type, data = pData(Romanov_cds)) + theme_bw()
+
+#Neurons Only
+#Romanov_Neuron_cds=subset(Romanov_cds, subset=Romanov_cds@phenoData@data$level1.class=="neurons")
+
+Romanov_Neuron_cds <- estimateSizeFactors(Romanov_Neuron_cds)
+Romanov_Neuron_cds <- classify_cells(Romanov_Neuron_cds, Hugo_classifier,
+                           db = org.Mm.eg.db,
+                           cluster_extend = TRUE,
+                           cds_gene_id_type = "SYMBOL")
+
+Romanov_cds <- estimateSizeFactors(Romanov_cds)
+Romanov_cds <- classify_cells(Romanov_cds, Hugo_classifier,
+                           db = org.Mm.eg.db,
+                           cluster_extend = TRUE,
+                           cds_gene_id_type = "SYMBOL")
+
+
+qplot(Romanov_cds@reducedDimS[,1], Romanov_cds@reducedDimS[,2], color = Romanov_cds@phenoData@data$cluster_ext_type) + theme_bw()
+
+
+qplot(Romanov_Neuron_cds@reducedDimS[,1], Romanov_Neuron_cds@reducedDimS[,2], color = Romanov_Neuron_cds@phenoData@data$cluster_ext_type) + theme_bw()
+
+#qplot(Romanov_cds@reducedDimS[,1], Romanov_cds@reducedDimS[,2], color = Romanov_cds@phenoData@data$cluster_ext_type) + theme_bw()
+
+qplot(Romanov_Neuron_cds@reducedDimS[,1], Romanov_Neuron_cds@reducedDimS[,2], color = Romanov_Neuron_cds@phenoData@data$age..days.postnatal.) + theme_bw()
+
+qplot(Romanov_Neuron_cds@reducedDimS[,1], Romanov_Neuron_cds@reducedDimS[,2], color = Romanov_Neuron_cds@phenoData@data$level2.class..neurons.only.) + theme_bw()
+
+#FindCorrelatings
+a=Romanov_Neuron_cds@phenoData@data$level2.class..neurons.only.
+b=Romanov_Neuron_cds@phenoData@data$cluster_ext_type
+c=cbind(as.character(a),b)
+write.table(c,"paired.txt") #Then count them
+d=read.csv("PairsCell.csv",header=TRUE)
+
+ggplot(d, aes(Regen, Celltype, fill= Number)) + 
+  geom_tile()
+
+#FindCorrelating2
+a=Romanov_Neuron_cds@phenoData@data$age..days.postnatal.
+b=Romanov_Neuron_cds@phenoData@data$cluster_ext_type
+c=cbind(as.character(a),b)
+write.table(c,"paired.txt") #Then count them
+d=read.csv("PairsCells.csv",header=TRUE)
+
+ggplot(d, aes(Regen, Age, fill= Number)) + 
+  geom_tile()
+save(Romanov_Neuron_cds,file="RomanovCDS_Neuron.Rdata")
+save(Romanov_cds,file="RomanovCDS.Rdata")
+
+
+#Usoskin
+load("UsoskinSeurat.Rdata")
+
+Usoskin.seurat_Neuron=subset(Usoskin.seurat, subset=Level.1!="NoN"&Level.1!=">1 cell"$Level.1!="Empty well")
+Usoskin_Neuron_cds <-as.CellDataSet(Usoskin.seurat_Neuron)
+Usoskin_Neuron_cds <- estimateSizeFactors(Usoskin_Neuron_cds)
+Usoskin_cds <-as.CellDataSet(Usoskin.seurat)
+Usoskin_cds <- estimateSizeFactors(Usoskin_cds)
+Usoskin_cds <- classify_cells(Usoskin_cds, Hugo_classifier,
+                          db = org.Mm.eg.db,
+                           cluster_extend = TRUE,
+                           cds_gene_id_type = "SYMBOL")
+#head(pData(Usoskin_cds))
+#table(pData(Usoskin_cds)$cell_type)
+#table(pData(Usoskin_cds)$cluster_ext_type)
+#Usoskin_cds@phenoData$tsne_1=Usoskin.seurat@reductions$tsne@cell.embeddings[,1]
+#Usoskin_cds@phenoData$tsne_2=Usoskin.seurat@reductions$tsne@cell.embeddings[,2]
+#qplot(tsne_1, tsne_2, color = cell_type, data = pData(Usoskin_cds)) + theme_bw()
+#qplot(tsne_1, tsne_2, color = cluster_ext_type, data = pData(Usoskin_cds)) + theme_bw()
+Usoskin_Neuron_cds <- classify_cells(Usoskin_Neuron_cds, Hugo_classifier,
+                           db = org.Mm.eg.db,
+                           cluster_extend = TRUE,
+                           cds_gene_id_type = "SYMBOL")
+
+qplot(Usoskin_Neuron_cds@reducedDimS[,1], Usoskin_Neuron_cds@reducedDimS[,2], color = Usoskin_Neuron_cds@phenoData@data$cluster_ext_type) + theme_bw()
+
+qplot(tsne_1, tsne_2, color = cell_type, data = pData(Usoskin_cds)) + theme_bw()
+qplot(tsne_1, tsne_2, color = cluster_ext_type, data = pData(Usoskin_cds)) + theme_bw()
+
+a=Usoskin_Neuron_cds@phenoData@data$Level.3
+b=Usoskin_Neuron_cds@phenoData@data$cluster_ext_type
+c=cbind(as.character(a),b)
+write.table(c,"paired.txt") #Then count them
+d=read.csv("PairCells.csv",header=TRUE)
+
+ggplot(d, aes(Regen, Celltype, fill= Number)) + 
+  geom_tile()
+save(Usoskin_Neuron_cds,file="UsoskinCDS_Neuron.Rdata")
+save(Usoskin_cds,file="UsoskinCDS.Rdata")
+
+
+
+#Chen
+load("ChenSeurat.Rdata")
+Chen.seurat_Neuron=subset(Chen.seurat, subset=grepl("GABA",SVM_clusterID)|grepl("Glu",SVM_clusterID)|SVM_clusterID=="Glu11")
+
+
+
+Chen_Neuron_cds <-as.CellDataSet(Chen.seurat_Neuron)
+Chen_Neuron_cds <- estimateSizeFactors(Chen_Neuron_cds)
+
+#Chen_cds <-as.CellDataSet(Chen.seurat)
+#Chen_cds <- estimateSizeFactors(Chen_cds)
+
+#Chen_cds <- classify_cells(Chen_cds, classifier,
+#                          db = org.Mm.eg.db,
+#                           cluster_extend = TRUE,
+#                           cds_gene_id_type = "SYMBOL")
+#head(pData(Chen_cds))
+#table(pData(Chen_cds)$cell_type)
+#table(pData(Chen_cds)$cluster_ext_type)
+#Chen_cds@phenoData$tsne_1=Chen.seurat@reductions$tsne@cell.embeddings[,1]
+#Chen_cds@phenoData$tsne_2=Chen.seurat@reductions$tsne@cell.embeddings[,2]
+#qplot(tsne_1, tsne_2, color = cell_type, data = pData(Chen_cds)) + theme_bw()
+#qplot(tsne_1, tsne_2, color = cluster_ext_type, data = pData(Chen_cds)) + theme_bw()
+
+#Chen_cds <- classify_cells(Chen_cds, Hugo_classifier,
+#                           db = org.Mm.eg.db,
+#                           cluster_extend = TRUE,
+#                           cds_gene_id_type = "SYMBOL")
+
+Chen_Neuron_cds <- classify_cells(Chen_Neuron_cds, Hugo_classifier,
+                           db = org.Mm.eg.db,
+                           cluster_extend = TRUE,
+                           cds_gene_id_type = "SYMBOL")
+
+Chen_cds <- classify_cells(Chen_cds, Hugo_classifier,
+                           db = org.Mm.eg.db,
+                           cluster_extend = TRUE,
+                           cds_gene_id_type = "SYMBOL")
+
+
+qplot(Chen_Neuron_cds@reducedDimS[,1], Chen_Neuron_cds@reducedDimS[,2], color = Chen_Neuron_cds@phenoData@data$cell_type) + theme_bw()
+
+qplot(tsne_1, tsne_2, color = cell_type, data = pData(Chen_cds)) + theme_bw()
+qplot(tsne_1, tsne_2, color = cluster_ext_type, data = pData(Chen_cds)) + theme_bw()
+save(Chen_cds,file="ChenCDS.Rdata")
+save(Chen_Neuron_cds,file="ChenCDS_Neuron.Rdata")
+
+#Campbell
+load("CampbellSeurat.Rdata")
+Campbell_cds <-as.CellDataSet(Campbell.seurat)
+Campbell_cds <- estimateSizeFactors(Campbell_cds)
+
+Campbell.seurat_Neuron=subset(Campbell.seurat, subset=clust_all_neurons=="neuron")
+Campbell_Neuron_cds <-as.CellDataSet(Campbell.seurat_Neuron)
+Campbell_Neuron_cds <- estimateSizeFactors(Campbell_Neuron_cds)
+
+
+load("CampbellCDS.Rdata")
+load("CampbellCDS_Neuron.Rdata")
+
+#Campbell_cds <- classify_cells(Campbell_cds, classifier,
+#                          db = org.Mm.eg.db,
+#                           cluster_extend = TRUE,
+#                           cds_gene_id_type = "SYMBOL")
+#head(pData(Campbell_cds))
+#table(pData(Campbell_cds)$cell_type)
+#table(pData(Campbell_cds)$cluster_ext_type)
+#Campbell_cds@phenoData$tsne_1=Campbell.seurat@reductions$tsne@cell.embeddings[,1]
+#Campbell_cds@phenoData$tsne_2=Campbell.seurat@reductions$tsne@cell.embeddings[,2]
+#qplot(tsne_1, tsne_2, color = cell_type, data = pData(Campbell_cds)) + theme_bw()
+#qplot(tsne_1, tsne_2, color = cluster_ext_type, data = pData(Campbell_cds)) + theme_bw()
+Campbell_Neuron_cds <- estimateSizeFactors(Campbell_Neuron_cds)
+Campbell_Neuron_cds <- classify_cells(Campbell_Neuron_cds, Hugo_classifier,
+                           db = org.Mm.eg.db,
+                           cluster_extend = TRUE,
+                           cds_gene_id_type = "SYMBOL")
+
+
+#Campbell_cds <- classify_cells(Campbell_cds, Hugo_classifier,
+#                           db = org.Mm.eg.db,
+#                           cluster_extend = TRUE,
+#                           cds_gene_id_type = "SYMBOL")
+
+
+
+
+qplot(Campbell_Neuron_cds@reducedDimS[,1], Campbell_Neuron_cds@reducedDimS[,2], color = Campbell_Neuron_cds@phenoData@data$cluster_ext_type) + theme_bw()
+qplot(tsne_1, tsne_2, color = cell_type, data = pData(Campbell_cds)) + theme_bw()
+qplot(tsne_1, tsne_2, color = cluster_ext_type, data = pData(Campbell_cds)) + theme_bw()
+save(Campbell_cds,file="CampbellCDS.Rdata")
+save(Campbell_Neuron_cds,file="CampbellCDS_Neuron.Rdata")
+
+#Marques
+load("MarquesSeurat.Rdata")
+Marques_cds <-as.CellDataSet(Marques.seurat)
+Marques_cds <- estimateSizeFactors(Marques_cds)
+
+Marques_cds<- classify_cells(Marques_cds, classifier,
+                          db = org.Mm.eg.db,
+                           cluster_extend = TRUE,
+                           cds_gene_id_type = "SYMBOL")
+head(pData(Marques_cds))
+table(pData(Marques_cds)$cell_type)
+table(pData(Marques_cds)$cluster_ext_type)
+Marques_cds@phenoData$tsne_1=Marques.seurat@reductions$tsne@cell.embeddings[,1]
+Marques_cds@phenoData$tsne_2=Marques.seurat@reductions$tsne@cell.embeddings[,2]
+
+qplot(tsne_1, tsne_2, color = cell_type, data = pData(Marques_cds)) + theme_bw()
+qplot(tsne_1, tsne_2, color = cluster_ext_type, data = pData(Marques_cds)) + theme_bw()
+Marques_cds<- classify_cells(Marques_cds, Hugo_classifier,
+                          db = org.Mm.eg.db,
+                           cluster_extend = TRUE,
+                           cds_gene_id_type = "SYMBOL")
+
+qplot(tsne_1, tsne_2, color = cell_type, data = pData(Marques_cds)) + theme_bw()
+qplot(tsne_1, tsne_2, color = cluster_ext_type, data = pData(Marques_cds)) + theme_bw()
+qplot(Marques_cds@reducedDimS[,1], Marques_cds@reducedDimS[,2], color = Marques_cds@phenoData@data$cluster_ext_type) + theme_bw()
+
+a=Marques_cds@phenoData@data$age
+b=Marques_cds@phenoData@data$cluster_ext_type
+c=cbind(as.character(a),b)
+write.table(c,"paired.txt") #Then count them
+d=read.csv("PairCells.csv",header=TRUE)
+ggplot(d, aes(Regen, Age, fill= Number)) + 
+  geom_tile()
+
+save(Marques_cds,file="MarquesCDS.Rdata")
+
+```
+
+```{r}
+#Zeisel
+load("ZeiselSeurat.Rdata")
+Zeisel.seurat_Neuron=subset(Zeisel.seurat, subset=grepl("pyramidal",level1class)|level1class=="interneurons")
+
+
+
+Zeisel_Neuron_cds <-as.CellDataSet(Zeisel.seurat_Neuron)
+Zeisel_Neuron_cds <- estimateSizeFactors(Zeisel_Neuron_cds)
+Zeisel_cds <-as.CellDataSet(Zeisel.seurat)
+Zeisel_cds <- estimateSizeFactors(Zeisel_cds)
+
+
+Zeisel_Neuron_cds <- classify_cells(Zeisel_Neuron_cds, Hugo_classifier,
+                           db = org.Mm.eg.db,
+                           cluster_extend = TRUE,
+                           cds_gene_id_type = "SYMBOL")
+
+Zeisel_cds <- classify_cells(Zeisel_cds, Hugo_classifier,
+                           db = org.Mm.eg.db,
+                           cluster_extend = TRUE,
+                           cds_gene_id_type = "SYMBOL")
+
+
+qplot(Zeisel_Neuron_cds@reducedDimS[,1], Zeisel_Neuron_cds@reducedDimS[,2], color = Zeisel_Neuron_cds@phenoData@data$cluster_ext_type) + theme_bw()
+
+qplot(Zeisel_cds@reducedDimS[,1], Zeisel_cds@reducedDimS[,2], color = Zeisel_cds@phenoData@data$cluster_ext_type) + theme_bw()
+
+
+save(Zeisel_cds,file="ZeiselCDS.Rdata")
+save(Zeisel_Neuron_cds,file="ZeiselCDS_Neuron.Rdata")
+
+#Zeisel 2018
+load("ZeiselNerve.seurat.Rdata") # Neuron Only Data
+ZeiselNerve_Spinal.seurat=subset(ZeiselNerve.seurat, subset=AnalysisPool=="SpinalCord")
+
+
+ZeiselNerve_Spinal_cds <-as.CellDataSet(ZeiselNerve_Spinal.seurat)
+ZeiselNerve_Spinal_cds <- estimateSizeFactors(ZeiselNerve_Spinal_cds)
+
+ZeiselNerve_Spinal_cds <- classify_cells(ZeiselNerve_Spinal_cds, Hugo_classifier,
+                           db = org.Mm.eg.db,
+                           cluster_extend = TRUE,
+                           cds_gene_id_type = "ENSEMBL")
+
+
+ZeiselNerve_DRG.seurat=subset(ZeiselNerve.seurat, subset=AnalysisPool=="DRG")
+ZeiselNerve_DRG_cds <-as.CellDataSet(ZeiselNerve_DRG.seurat)
+ZeiselNerve_DRG_cds <- estimateSizeFactors(ZeiselNerve_DRG_cds)
+
+ZeiselNerve_DRG_cds <- classify_cells(ZeiselNerve_DRG_cds, Hugo_classifier,
+                           db = org.Mm.eg.db,
+                           cluster_extend = TRUE,
+                           cds_gene_id_type = "ENSEMBL")
+
+
+
+
+ZeiselNerve_cds <-as.CellDataSet(ZeiselNerve.seurat)
+ZeiselNerve_cds <- estimateSizeFactors(ZeiseNerve_cds)
+
+
+ZeiseNerve_cds <- classify_cells(ZeiseNerve_cds, Hugo_classifier,
+                           db = org.Mm.eg.db,
+                           cluster_extend = TRUE,
+                           cds_gene_id_type = "SYMBOL")
+
+
+
+qplot(ZeiseNerve_cds@reducedDimS[,1], ZeiseNerve_cds@reducedDimS[,2], color = ZeiseNerve_cds@phenoData@data$cluster_ext_type) + theme_bw()
+
+qplot(ZeiselNerve_Spinal_cds@reducedDimS[,1], ZeiselNerve_Spinal_cds@reducedDimS[,2], color = ZeiselNerve_Spinal_cds@phenoData@data$cluster_ext_type) + theme_bw()
+
+qplot(ZeiselNerve_DRG_cds@reducedDimS[,1], ZeiselNerve_DRG_cds@reducedDimS[,2], color = ZeiselNerve_DRG_cds@phenoData@data$cluster_ext_type) + theme_bw()
+
+
+save(ZeiseNerve_cds,file="ZeiseNerveCDS.Rdata")
+save(ZeiselNerve_Spinal_cds,file="ZeiseNerveSPinalCDS.Rdata")
+a=Zeisel_Neuron_cds@phenoData@data$age
+b=Zeisel_Neuron_cds@phenoData@data$cluster_ext_type
+c=cbind(as.character(a),b)
+write.table(c,"paired.txt") #Then count them
+d=read.csv("PairCells.csv",header=TRUE)
+ggplot(d, aes(Regen, Age, fill= Number)) + 
+  geom_tile()
+```
+
+Jessa
+```{r}
+#Jessa 2019
+load("JessaSeurat.Rdata")
+Jessa.seurat_Neuron=subset(Jessa.seurat, subset=grepl("EX",Sample_Cluster)|grepl("IN",Sample_Cluster)|grepl("NEUR",Sample_Cluster)|Sample_Cluster=="interneurons")
+
+
+Jessa_Neuron_cds <-as.CellDataSet(Jessa.seurat_Neuron)
+Jessa_Neuron_cds <- estimateSizeFactors(Jessa_Neuron_cds)
+Jessa_cds <-as.CellDataSet(Jessa.seurat)
+Jessa_cds <- estimateSizeFactors(Jessa_cds)
+
+
+Jessa_Neuron_cds <- classify_cells(Jessa_Neuron_cds, Hugo_classifier,
+                           db = org.Mm.eg.db,
+                           cluster_extend = TRUE,
+                           cds_gene_id_type = "ENSEMBL")
+
+Jessa_cds <- classify_cells(Jessa_cds, Hugo_classifier,
+                           db = org.Mm.eg.db,
+                           cluster_extend = TRUE,
+                           cds_gene_id_type = "ENSEMBL")
+
+load("JessaCDS.Rdata")
+load("JessaCDS_Neuron.Rdata")
+
+qplot(Jessa_Neuron_cds@reducedDimS[,1], Jessa_Neuron_cds@reducedDimS[,2], color = Jessa_Neuron_cds@phenoData@data$cluster_ext_type) + theme_bw()
+
+qplot(Jessa_cds@reducedDimS[,1], Jessa_cds@reducedDimS[,2], color = Jessa_cds@phenoData@data$cluster_ext_type) + theme_bw()
+
+
+save(Jessa_cds,file="JessaCDS.Rdata")
+save(Jessa_Neuron_cds,file="JessaCDS_Neuron.Rdata")
+```
+
+
+LaManno
+```{r}
+#LaManno 2016
+load("LaManno_adultSeurat.Rdata")
+LaManno_adult_SNC.seurat=subset(LaManno_adult.seurat, subset=grepl("SNC",Cell_type)|Cell_type=="interneurons")
+
+LaManno_adult_cds <-as.CellDataSet(LaManno_adult.seurat)
+LaManno_adult_cds<- estimateSizeFactors(LaManno_adult_cds)
+
+LaManno_adult_SNC_cds <-as.CellDataSet(LaManno_adult_SNC.seurat)
+LaManno_adult_SNC_cds<- estimateSizeFactors(LaManno_adult_SNC_cds)
+
+
+
+
+
+LaManno_adult_cds <- classify_cells(LaManno_adult_cds, Hugo_classifier,
+                           db = org.Mm.eg.db,
+                           cluster_extend = TRUE,
+                           cds_gene_id_type = "SYMBOL")
+
+
+LaManno_adult_SNC_cds <- classify_cells(LaManno_adult_SNC_cds, Hugo_classifier,
+                           db = org.Mm.eg.db,
+                           cluster_extend = TRUE,
+                           cds_gene_id_type = "SYMBOL")
+
+
+qplot(LaManno_adult_cds@reducedDimS[,1], LaManno_adult_cds@reducedDimS[,2], color = LaManno_adult_cds@phenoData@data$cluster_ext_type) + theme_bw()
+qplot(LaManno_adult_SNC_cds@reducedDimS[,1], LaManno_adult_SNC_cds@reducedDimS[,2], color = LaManno_adult_SNC_cds@phenoData@data$cluster_ext_type) + theme_bw()
+
+
+save(LaManno_adult_cds,file="LaMannoAdultCDS.Rdata")
+save(LaManno_adult_SNC_cds,file="LaMannoAdultSNCCDS.Rdata")
+
+#LaManno embryonic
+load("LaManno_embryoSeurat.Rdata")
+LaManno_embryo_Neuron.seurat=subset(LaManno_embryo.seurat, subset=grepl("DA",Cell_type)|grepl("Gaba",Cell_type)|grepl("OMTN",Cell_type)|grepl("RN",Cell_type)|grepl("Sert",Cell_type)|Cell_type=="mNbM")
+
+
+LaManno_embryo_cds <-as.CellDataSet(LaManno_embryo.seurat)
+LaManno_embryo_cds<- estimateSizeFactors(LaManno_embryo_cds)
+
+LaManno_embryo_Neuron_cds <-as.CellDataSet(LaManno_embryo_Neuron.seurat)
+LaManno_embryo_Neuron_cds<- estimateSizeFactors(LaManno_embryo_Neuron_cds)
+
+LaManno_embryo_cds <- classify_cells(LaManno_embryo_cds, Hugo_classifier,
+                           db = org.Mm.eg.db,
+                           cluster_extend = TRUE,
+                           cds_gene_id_type = "SYMBOL")
+LaManno_embryo_Neuron_cds <- classify_cells(LaManno_embryo_Neuron_cds,        
+                          Hugo_classifier,
+                           db = org.Mm.eg.db,
+                           cluster_extend = TRUE,
+                           cds_gene_id_type = "SYMBOL")
+
+qplot(LaManno_embryo_cds@reducedDimS[,1], LaManno_embryo_cds@reducedDimS[,2], color = LaManno_embryo_cds@phenoData@data$cluster_ext_type,size=I(0.1)) + theme_bw()
+qplot(LaManno_embryo_Neuron_cds@reducedDimS[,1], LaManno_embryo_Neuron_cds@reducedDimS[,2], color = LaManno_embryo_Neuron_cds@phenoData@data$cluster_ext_type) + theme_bw()
+
+
+save(LaManno_embryo_cds,file="LaMannoEmbryoCDS.Rdata")
+
+a=LaManno_adult_cds@phenoData@data$cluster_ext_type
+b=LaManno_embryo_cds@phenoData@data$cluster_ext_type
+
+write.table(a,"LaManno_adult.txt") #Then count them
+write.table(b,"LaManno_embryo.txt") #Then count them
+d=read.csv("Pairs_LaM.csv",header=TRUE)
+ggplot(d, aes(Regen, Age, fill= Number)) + 
+  geom_tile()
+
+
+```
+
+Tasic
+```{r}
+#Tasic 2017
+load("TasicSeurat.Rdata")
+Tasic.seurat_Neuron=subset(Tasic.seurat, subset=grepl("Neuron",broad_type)|broad_type=="interneurons")
+
+
+Tasic_Neuron_cds <-as.CellDataSet(Tasic.seurat_Neuron)
+Tasic_Neuron_cds <- estimateSizeFactors(Tasic_Neuron_cds)
+Tasic_cds <-as.CellDataSet(Tasic.seurat)
+Tasic_cds <- estimateSizeFactors(Tasic_cds)
+
+
+Tasic_Neuron_cds <- classify_cells(Tasic_Neuron_cds, Hugo_classifier,
+                           db = org.Mm.eg.db,
+                           cluster_extend = TRUE,
+                           cds_gene_id_type = "SYMBOL")
+
+Tasic_cds <- classify_cells(Tasic_cds, Hugo_classifier,
+                           db = org.Mm.eg.db,
+                           cluster_extend = TRUE,
+                           cds_gene_id_type = "SYMBOL")
+
+
+qplot(Tasic_Neuron_cds@reducedDimS[,1], Tasic_Neuron_cds@reducedDimS[,2], color = Tasic_Neuron_cds@phenoData@data$cluster_ext_type) + theme_bw()
+
+qplot(Tasic_cds@reducedDimS[,1], Tasic_cds@reducedDimS[,2], color = Tasic_cds@phenoData@data$cluster_ext_type) + theme_bw()
+
+
+save(Tasic_cds,file="TasicCDS.Rdata")
+save(Tasic_Neuron_cds,file="TasicCDS_Neuron.Rdata")
+```
+
+Hu 2017
+```{r}
+#Hu 2017
+load("HuSeurat.Rdata")
+
+
+Hu_cds <-as.CellDataSet(Hu.seurat)
+Hu_cds <- estimateSizeFactors(Hu_cds)
+
+Hu_cds <- classify_cells(Hu_cds, Hugo_classifier,
+                           db = org.Mm.eg.db,
+                           cluster_extend = TRUE,
+                           cds_gene_id_type = "SYMBOL")
+
+
+save(Hu_cds,file="HuCDS.Rdata")
+
+load("HuCDS.Rdata")
+qplot(Hu_cds@reducedDimS[,1], Hu_cds@reducedDimS[,2], color = Hu_cds@phenoData@data$cluster_ext_type) + theme_bw()
+```
+
+```{r}
+load("MacoskoSeurat.Rdata")
+load("ShekharSeurat.Rdata")
+MacoskoRetina_cds <- as.CellDataSet(MacoskoRetina.seurat)
+MacoskoRetina_cds <- estimateSizeFactors(MacoskoRetina_cds)
+MacoskoRetina_cds  <- classify_cells(MacoskoRetina_cds, Hugo_classifier,
+                           db = org.Mm.eg.db,
+                           cluster_extend = TRUE,
+                           cds_gene_id_type = "SYMBOL")
+save(MacoskoRetina_cds,file="MacoskoRetinaCDS.Rdata")
+load("MacoskoRetinaCDS.Rdata")
+qplot(MacoskoRetina_cds@reducedDimS[,1], MacoskoRetina_cds@reducedDimS[,2], color = MacoskoRetina_cds@phenoData@data$cluster_ext_type) + theme_bw()
+
+qplot(MacoskoRetina_cds@reducedDimS[,1], MacoskoRetina_cds@reducedDimS[,2], color = MacoskoRetina_cds@phenoData@data$cluster) + theme_bw()
+
+
+ShekharRetina_cds <- as.CellDataSet(ShekharRetina.seurat)
+ShekharRetina_cds <- estimateSizeFactors(ShekharRetina_cds)
+ShekharRetina_cds <- classify_cells(ShekharRetina_cds, Hugo_classifier,
+                           db = org.Mm.eg.db,
+                           cluster_extend = TRUE,
+                           cds_gene_id_type = "SYMBOL")
+save(ShekharRetina_cds,file="ShekharRetinaCDS.Rdata")
+load("ShekharRetinaCDS.Rdata")
+qplot(ShekharRetina_cds@reducedDimS[,1], ShekharRetina_cds@reducedDimS[,2], color = ShekharRetina_cds@phenoData@data$cluster_ext_type) + theme_bw()
+
+qplot(ShekharRetina_cds@reducedDimS[,1], ShekharRetina_cds@reducedDimS[,2], color = ShekharRetina_cds@phenoData@data$CLUSTER) + theme_bw()
+
+a=ShekharRetina_cds@phenoData@data$CLUSTER
+b=ShekharRetina_cds@phenoData@data$cluster_ext_type
+c=cbind(as.character(a),b)
+write.table(c,"paired.txt") #Then count them
+d=read.csv("PairCells.csv",header=TRUE)
+ggplot(d, aes(Regen, Age, fill= Number)) + 
+  geom_tile()
+
+Shekhar2020_E13=read.delim2("/Users/hugokim/Documents/Hugos Code/Retina_Embryonic/GSE185671_E13RGC.csv.gz",header=TRUE,sep=",")
+rownames(Shekhar2020_E13)=Shekhar2020_E13[,1]
+Shekhar2020_E13=Shekhar2020_E13[,-1]
+Shekhar2020_E13.seurat=CreateSeuratObject(counts = Shekhar2020_E13, project = "Shekhar2020_E13")
+
+Shekhar2020_E13.seurat <- FindVariableFeatures(Shekhar2020_E13.seurat)
+Shekhar2020_E13.seurat <- ScaleData(Shekhar2020_E13.seurat)
+Shekhar2020_E13.seurat<- RunPCA(Shekhar2020_E13.seurat)
+Shekhar2020_E13.sce<-as.SingleCellExperiment(Shekhar2020_E13.seurat)
+Shekhar2020_E13.sce<- runTSNE(Shekhar2020_E13.sce)
+Shekhar2020_E13.sce<- runUMAP(Shekhar2020_E13.sce)
+Shekhar2020_E13.seurat<-as.Seurat(Shekhar2020_E13.sce)
+save(Shekhar2020_E13.seurat,file="Shekhar2020_E13SEURAT.Rdata")
+ShekharE13Retina_cds <- as.CellDataSet(Shekhar2020_E13.seurat)
+ShekharE13Retina_cds <- estimateSizeFactors(ShekharE13Retina_cds)
+ShekharE13Retina_cds <- classify_cells(ShekharE13Retina_cds, Hugo_classifier,
+                           db = org.Mm.eg.db,
+                           cluster_extend = TRUE,
+                           cds_gene_id_type = "SYMBOL")
+save(ShekharE13Retina_cds,file="ShekharE13RetinaCDS.Rdata")
+load("/Users/hugokim/Documents/Hugos Code/Retina_Embryonic/ShekharE13RetinaCDS.Rdata")
+
+qplot(ShekharE13Retina_cds@reducedDimS[,1], ShekharE13Retina_cds@reducedDimS[,2], color = ShekharE13Retina_cds@phenoData@data$cluster_ext_type,size=I(0.5)) + theme_bw()+scale_color_manual(values=c("#619CFF","#00BA38","#F8766D"))
+
+Shekhar2020_E14=read.delim2("/Users/hugokim/Documents/Hugos Code/Retina_Embryonic/GSE185671_E14RGC.csv.gz",header=TRUE,sep=",")
+rownames(Shekhar2020_E14)=Shekhar2020_E14[,1]
+Shekhar2020_E14=Shekhar2020_E14[,-1]
+Shekhar2020_E14.seurat=CreateSeuratObject(counts = Shekhar2020_E14, project = "Shekhar2020_E14")
+Shekhar2020_E14.seurat <- FindVariableFeatures(Shekhar2020_E14.seurat)
+Shekhar2020_E14.seurat <- ScaleData(Shekhar2020_E14.seurat)
+Shekhar2020_E14.seurat<- RunPCA(Shekhar2020_E14.seurat)
+Shekhar2020_E14.sce<-as.SingleCellExperiment(Shekhar2020_E14.seurat)
+Shekhar2020_E14.sce<- runTSNE(Shekhar2020_E14.sce)
+Shekhar2020_E14.sce<- runUMAP(Shekhar2020_E14.sce)
+Shekhar2020_E14.seurat<-as.Seurat(Shekhar2020_E14.sce)
+save(Shekhar2020_E14.seurat,file="Shekhar2020_E14SEURAT.Rdata")
+ShekharE14Retina_cds <- as.CellDataSet(Shekhar2020_E14.seurat)
+ShekharE14Retina_cds <- estimateSizeFactors(ShekharE14Retina_cds)
+ShekharE14Retina_cds <- classify_cells(ShekharE14Retina_cds, Hugo_classifier,
+                                       db = org.Mm.eg.db,
+                                       cluster_extend = TRUE,
+                                       cds_gene_id_type = "SYMBOL")
+save(ShekharE14Retina_cds,file="ShekharE14RetinaCDS.Rdata")
+load("/Users/hugokim/Documents/Hugos Code/Retina_Embryonic/ShekharE14RetinaCDS.Rdata")
+
+qplot(ShekharE14Retina_cds@reducedDimS[,1], ShekharE14Retina_cds@reducedDimS[,2], color = ShekharE14Retina_cds@phenoData@data$cluster_ext_type,size=I(0.5)) + theme_bw()+scale_color_manual(values=c("#619CFF","#00BA38","#F8766D"))
+
+Shekhar2020_E16=read.delim2("/Users/hugokim/Documents/Hugos Code/Retina_Embryonic/GSE185671_E16RGC.csv.gz",header=TRUE,sep=",")
+rownames(Shekhar2020_E16)=Shekhar2020_E16[,1]
+Shekhar2020_E16=Shekhar2020_E16[,-1]
+Shekhar2020_E16.seurat=CreateSeuratObject(counts = Shekhar2020_E16, project = "Shekhar2020_E16")
+Shekhar2020_E16.seurat <- FindVariableFeatures(Shekhar2020_E16.seurat)
+Shekhar2020_E16.seurat <- ScaleData(Shekhar2020_E16.seurat)
+Shekhar2020_E16.seurat<- RunPCA(Shekhar2020_E16.seurat)
+Shekhar2020_E16.sce<-as.SingleCellExperiment(Shekhar2020_E16.seurat)
+Shekhar2020_E16.sce<- runTSNE(Shekhar2020_E16.sce)
+Shekhar2020_E16.sce<- runUMAP(Shekhar2020_E16.sce)
+Shekhar2020_E16.seurat<-as.Seurat(Shekhar2020_E16.sce)
+save(Shekhar2020_E16.seurat,file="Shekhar2020_E16SEURAT.Rdata")
+ShekharE16Retina_cds <- as.CellDataSet(Shekhar2020_E16.seurat)
+ShekharE16Retina_cds <- estimateSizeFactors(ShekharE16Retina_cds)
+ShekharE16Retina_cds <- classify_cells(ShekharE16Retina_cds, Hugo_classifier,
+                                       db = org.Mm.eg.db,
+                                       cluster_extend = TRUE,
+                                       cds_gene_id_type = "SYMBOL")
+save(ShekharE16Retina_cds,file="ShekharE16RetinaCDS.Rdata")
+load("/Users/hugokim/Documents/Hugos Code/Retina_Embryonic/ShekharE16RetinaCDS.Rdata")
+
+qplot(ShekharE16Retina_cds@reducedDimS[,1], ShekharE16Retina_cds@reducedDimS[,2], color = ShekharE16Retina_cds@phenoData@data$cluster_ext_type,size=I(0.5)) + theme_bw()
+
+Shekhar2020_P0=read.delim2("/Users/hugokim/Documents/Hugos Code/Retina_Embryonic/GSE185671_P0RGC.csv.gz",header=TRUE,sep=",")
+rownames(Shekhar2020_P0)=Shekhar2020_P0[,1]
+Shekhar2020_P0=Shekhar2020_P0[,-1]
+Shekhar2020_P0.seurat=CreateSeuratObject(counts = Shekhar2020_P0, project = "Shekhar2020_P0")
+Shekhar2020_P0.seurat <- FindVariableFeatures(Shekhar2020_P0.seurat)
+Shekhar2020_P0.seurat <- ScaleData(Shekhar2020_P0.seurat)
+Shekhar2020_P0.seurat<- RunPCA(Shekhar2020_P0.seurat)
+Shekhar2020_P0.sce<-as.SingleCellExperiment(Shekhar2020_P0.seurat)
+Shekhar2020_P0.sce<- runTSNE(Shekhar2020_P0.sce)
+Shekhar2020_P0.sce<- runUMAP(Shekhar2020_P0.sce)
+Shekhar2020_P0.seurat<-as.Seurat(Shekhar2020_P0.sce)
+save(Shekhar2020_P0.seurat,file="Shekhar2020_P0SEURAT.Rdata")
+ShekharP0Retina_cds <- as.CellDataSet(Shekhar2020_P0.seurat)
+ShekharP0Retina_cds <- estimateSizeFactors(ShekharP0Retina_cds)
+ShekharP0Retina_cds <- classify_cells(ShekharP0Retina_cds, Hugo_classifier,
+                                       db = org.Mm.eg.db,
+                                       cluster_extend = TRUE,
+                                       cds_gene_id_type = "SYMBOL")
+save(ShekharP0Retina_cds,file="ShekharP0RetinaCDS.Rdata")
+load("/Users/hugokim/Documents/Hugos Code/Retina_Embryonic/ShekharP0RetinaCDS.Rdata")
+
+qplot(ShekharP0Retina_cds@reducedDimS[,1], ShekharP0Retina_cds@reducedDimS[,2], color = ShekharP0Retina_cds@phenoData@data$cluster_ext_type,size=I(0.5)) + theme_bw()
+
+
+```
+
+Delile 2019
+```{r}
+SpinalCordEmbryonic=read.delim2("/Users/hugokim/Documents/Hugos Code/Delile_Embryonic_Spinal/UMI_count.tsv",header=TRUE,sep="\t")
+rownames(SpinalCordEmbryonic)=SpinalCordEmbryonic[,1]
+SpinalCordEmbryonic=SpinalCordEmbryonic[,-1]
+SpinalEmbryonicPheno=read.delim("/Users/hugokim/Documents/Hugos Code/Delile_Embryonic_Spinal/phenoData_annotated.csv",header=TRUE,sep="\t")
+rownames(SpinalEmbryonicPheno)=SpinalEmbryonicPheno[,1]
+SpinalEmbryonicPheno=SpinalEmbryonicPheno[,-1]
+
+SpinalCordEmbryonic.seurat=CreateSeuratObject(counts = SpinalCordEmbryonic, project = "SpinalCordEmbryonic",meta.data=SpinalEmbryonicPheno)
+SpinalCordEmbryonic.seurat <- FindVariableFeatures(SpinalCordEmbryonic.seurat)
+SpinalCordEmbryonic.seurat <- ScaleData(SpinalCordEmbryonic.seurat)
+SpinalCordEmbryonic.seurat<- RunPCA(SpinalCordEmbryonic.seurat)
+SpinalCordEmbryonic.sce<-as.SingleCellExperiment(SpinalCordEmbryonic.seurat)
+SpinalCordEmbryonic.sce<- runTSNE(SpinalCordEmbryonic.sce)
+SpinalCordEmbryonic.sce<- runUMAP(SpinalCordEmbryonic.sce)
+SpinalCordEmbryonic.seurat<-as.Seurat(SpinalCordEmbryonic.sce)
+save(SpinalCordEmbryonic.seurat,file="SpinalCordEmbryonicSEURAT.Rdata")
+SpinalCordEmbryonic_cds <- as.CellDataSet(SpinalCordEmbryonic.seurat)
+SpinalCordEmbryonic_cds <- estimateSizeFactors(SpinalCordEmbryonic_cds)
+SpinalCordEmbryonic_cds <- classify_cells(SpinalCordEmbryonic_cds, Hugo_classifier,
+                                      db = org.Mm.eg.db,
+                                      cluster_extend = TRUE,
+                                      cds_gene_id_type = "ENSEMBL")
+SpinalCordEmbryonic_cds$timepoint=SpinalEmbryonicPheno$timepoint
+SpinalCordEmbryonic_cds$replicate_id=SpinalEmbryonicPheno$replicate_id
+SpinalCordEmbryonic_cds$Type_step1=SpinalEmbryonicPheno$Type_step1
+SpinalCordEmbryonic_cds$Type_step2=SpinalEmbryonicPheno$Type_step2
+SpinalCordEmbryonic_cds$Type_step2_unique=SpinalEmbryonicPheno$Type_step2_unique
+SpinalCordEmbryonic_cds$DV=SpinalEmbryonicPheno$DV
+SpinalCordEmbryonic_cds$Neuron_subtypes=SpinalEmbryonicPheno$Neuron_subtypes
+SpinalCordEmbryonic_cds$Pseudotime=SpinalEmbryonicPheno$Pseudotime
+
+
+save(SpinalCordEmbryonic_cds,file="SpinalCordEmbryonicCDS.Rdata")
+load("/Users/hugokim/Documents/Hugos Code/Delile_Embryonic_Spinal/SpinalCordEmbryonicCDS.Rdata")
+
+qplot(SpinalCordEmbryonic_cds@reducedDimS[,1], SpinalCordEmbryonic_cds@reducedDimS[,2], color = SpinalCordEmbryonic_cds@phenoData@data$cluster_ext_type,size=I(0.5)) + theme_bw()+scale_color_manual(values=c("#619CFF","#00BA38","#F8766D"))
+
+qplot(SpinalCordEmbryonic_cds@reducedDimS[,1], SpinalCordEmbryonic_cds@reducedDimS[,2], color = SpinalCordEmbryonic_cds@phenoData@data$timepoint,size=I(0.5)) + theme_bw()
+
+```
+
+```{r}
+Hayashi_SpinalCord=read.csv("/Users/hugokim/Documents/Hugos Code/Hayashi_Juven_Spinalcord/GSM2913270_umiGeneCounts.csv",header=TRUE)
+rownames(Hayashi_SpinalCord)=Hayashi_SpinalCord[,1]
+Hayashi_SpinalCord=Hayashi_SpinalCord[,-1]
+Hayashi_SpinalCord.seurat=CreateSeuratObject(counts = Hayashi_SpinalCord, project = "Hayashi_SpinalCord")
+Hayashi_SpinalCord.seurat <- FindVariableFeatures(Hayashi_SpinalCord.seurat)
+Hayashi_SpinalCord.seurat <- ScaleData(Hayashi_SpinalCord.seurat)
+Hayashi_SpinalCord.seurat<- RunPCA(Hayashi_SpinalCord.seurat)
+Hayashi_SpinalCord.sce<-as.SingleCellExperiment(Hayashi_SpinalCord.seurat)
+Hayashi_SpinalCord.sce<- runTSNE(Hayashi_SpinalCord.sce)
+Hayashi_SpinalCord.sce<- runUMAP(Hayashi_SpinalCord.sce)
+Hayashi_SpinalCord.seurat<-as.Seurat(Hayashi_SpinalCord.sce)
+save(Hayashi_SpinalCord.seurat,file="Hayashi_SpinalCordSEURAT.Rdata")
+Hayashi_SpinalCord_cds <- as.CellDataSet(Hayashi_SpinalCord.seurat)
+Hayashi_SpinalCord_cds <- estimateSizeFactors(Hayashi_SpinalCord_cds)
+Hayashi_SpinalCord_cds <- classify_cells(Hayashi_SpinalCord_cds, Hugo_classifier,
+                                          db = org.Mm.eg.db,
+                                          cluster_extend = TRUE,
+                                          cds_gene_id_type = "SYMBOL")
+
+
+
+save(Hayashi_SpinalCord_cds,file="Hayashi_SpinalCordCDS.Rdata")
+
+
+qplot(Hayashi_SpinalCord_cds@reducedDimS[,1], Hayashi_SpinalCord_cds@reducedDimS[,2], color = Hayashi_SpinalCord_cds@phenoData@data$cluster_ext_type,size=I(0.5)) + theme_bw()+scale_color_manual(values=c("#619CFF","#00BA38","#F8766D"))
+qplot(Hayashi_SpinalCord_cds@reducedDimS[,1], Hayashi_SpinalCord_cds@reducedDimS[,2], color = Hayashi_SpinalCord_cds@phenoData@data$timepoint,size=I(0.5)) + theme_bw()
+```
+
+baek
+```{r}
+Baek_SpinalCord=read.delim2("/Users/hugokim/Documents/Hugos Code/Baek_Juvenile_Spinalcord/GSE130312_compiled_counts_20190410.csv.gz",header=TRUE,sep=",")
+Baek_SpinalCord=read.delim2("/Users/hugokim/Documents/Hugos Code/Baek_Juvenile_Spinalcord/GSM3735917_Q5_star_GRCm38_counts.dat.txt.gz",header=TRUE,sep="\t")
+
+rownames(Baek_SpinalCord)=Baek_SpinalCord[,1]
+Baek_SpinalCord=Baek_SpinalCord[,-1]
+Baek_SpinalCord_Anno=read.delim2("/Users/hugokim/Documents/Hugos Code/Baek_Juvenile_Spinalcord/GSE130312_all_sc_data_annotation_20180724.csv",header=TRUE,sep=",")
+rownames(Baek_SpinalCord_Anno)=Baek_SpinalCord_Anno[,1]
+Baek_SpinalCord_Anno=Baek_SpinalCord_Anno[,-1]
+
+Baek_SpinalCord.seurat=CreateSeuratObject(counts = Baek_SpinalCord, project = "Baek_SpinalCord",meta.data=Baek_SpinalCord_Anno)
+Baek_SpinalCord.seurat <- FindVariableFeatures(Baek_SpinalCord.seurat)
+Baek_SpinalCord.seurat <- ScaleData(Baek_SpinalCord.seurat)
+Baek_SpinalCord.seurat<- RunPCA(Baek_SpinalCord.seurat)
+Baek_SpinalCord.sce<-as.SingleCellExperiment(Baek_SpinalCord.seurat)
+Baek_SpinalCord.sce<- runTSNE(Baek_SpinalCord.sce)
+Baek_SpinalCord.sce<- runUMAP(Baek_SpinalCord.sce)
+Baek_SpinalCord.seurat<-as.Seurat(Baek_SpinalCord.sce)
+save(Baek_SpinalCord.seurat,file="Baek_SpinalCordSEURAT.Rdata")
+Baek_SpinalCord_cds <- as.CellDataSet(Baek_SpinalCord.seurat)
+Baek_SpinalCord_cds <- estimateSizeFactors(Baek_SpinalCord_cds)
+Baek_SpinalCord_cds <- classify_cells(Baek_SpinalCord_cds, Hugo_classifier,
+                                         db = org.Mm.eg.db,
+                                         cluster_extend = TRUE,
+                                         cds_gene_id_type = "SYMBOL")
+save(Baek_SpinalCord_cds,file="Baek_SpinalCordCDS.Rdata")
+
+
+qplot(Baek_SpinalCord_cds@reducedDimS[,1], Baek_SpinalCord_cds@reducedDimS[,2], color = Baek_SpinalCord_cds@phenoData@data$cluster_ext_type,size=I(0.5)) + theme_bw()+scale_color_manual(values=c("#619CFF","#00BA38","#F8766D"))
+qplot(Baek_SpinalCord_cds@reducedDimS[,1], Baek_SpinalCord_cds@reducedDimS[,2], color = Baek_SpinalCord_cds@phenoData@data$timepoint,size=I(0.5)) + theme_bw()
+
+```
+Hairing
+```{r}
+Hairing_SpinalCord=read.csv("/Users/hugokim/Documents/Hugos Code/Hairing_spinal/GSE103840_molecule_counts.csv",header=TRUE)
+rownames(Hairing_SpinalCord)=Hairing_SpinalCord[,1]
+Hairing_SpinalCord=Hairing_SpinalCord[,-1]
+Hairing_SpinalCord_Anno=read.csv("/Users/hugokim/Documents/Hugos Code/Hairing_spinal/Hairing_Pheno.csv",header=TRUE)
+rownames(Hairing_SpinalCord_Anno)=Hairing_SpinalCord_Anno[,1]
+Hairing_SpinalCord_Anno=Hairing_SpinalCord_Anno[,-1]
+
+Hairing_SpinalCord.seurat=CreateSeuratObject(counts = Hairing_SpinalCord, project = "Hairing_SpinalCord",meta.data=Hairing_SpinalCord_Anno)
+Hairing_SpinalCord.seurat <- FindVariableFeatures(Hairing_SpinalCord.seurat)
+Hairing_SpinalCord.seurat <- ScaleData(Hairing_SpinalCord.seurat)
+Hairing_SpinalCord.seurat<- RunPCA(Hairing_SpinalCord.seurat)
+Hairing_SpinalCord.sce<-as.SingleCellExperiment(Hairing_SpinalCord.seurat)
+Hairing_SpinalCord.sce<- runTSNE(Hairing_SpinalCord.sce)
+Hairing_SpinalCord.sce<- runUMAP(Hairing_SpinalCord.sce)
+Hairing_SpinalCord.seurat<-as.Seurat(Hairing_SpinalCord.sce)
+save(Hairing_SpinalCord.seurat,file="Hairing_SpinalCordSEURAT.Rdata")
+
+
+Hairing_SpinalCord_cds <- as.CellDataSet(Hairing_SpinalCord.seurat)
+Hairing_SpinalCord_cds <- estimateSizeFactors(Hairing_SpinalCord_cds)
+Hairing_SpinalCord_cds <- classify_cells(Hairing_SpinalCord_cds, Hugo_classifier,
+                                      db = org.Mm.eg.db,
+                                      cluster_extend = TRUE,
+                                      cds_gene_id_type = "SYMBOL")
+save(Hairing_SpinalCord_cds,file="Hairing_SpinalCordCDS.Rdata")
+
+qplot(Hairing_SpinalCord_cds@reducedDimS[,1], Hairing_SpinalCord_cds@reducedDimS[,2], color = Hairing_SpinalCord_cds@phenoData@data$NeuronType,size=I(0.5)) + theme_bw()
+qplot(Hairing_SpinalCord_cds@reducedDimS[,1], Hairing_SpinalCord_cds@reducedDimS[,2], color = Hairing_SpinalCord_cds@phenoData@data$cluster_ext_type,size=I(0.5)) + theme_bw()
+
+a=Hairing_SpinalCord_cds@phenoData@data$cluster.name
+b=Hairing_SpinalCord_cds@phenoData@data$cluster_ext_type
+c=cbind(as.character(a),b)
+write.table(c,"paired.txt") #Then count them
+d=read.csv("PairsCell.csv",header=TRUE)
+
+ggplot(d, aes(Regen, Celltype, fill= Number)) + 
+  geom_tile()
+
+
+```
+Cerebellum Data
+```{r}
+P0_Cerebellum=read.csv("/Users/hugokim/Documents/Hugos Code/PengJ et al 2019 Cerebellum/GSE122357_RAW/GSM3464549_P0.csv.gz",header=TRUE)
+rownames(P0_Cerebellum)=P0_Cerebellum[,1]
+P0_Cerebellum=P0_Cerebellum[,-1]
+
+P0_Cerebellum_meta=read.csv("/Users/hugokim/Documents/Hugos Code/PengJ et al 2019 Cerebellum/P0_Metadata.csv",header=TRUE)
+rownames(P0_Cerebellum_meta)=P0_Cerebellum_meta[,1]
+
+P0_Cerebellum.seurat=CreateSeuratObject(counts = P0_Cerebellum, project = "P0_Cerebellum",meta.data=P0_Cerebellum_meta)
+P0_Cerebellum.seurat <- FindVariableFeatures(P0_Cerebellum.seurat)
+P0_Cerebellum.seurat <- ScaleData(P0_Cerebellum.seurat)
+P0_Cerebellum.seurat<- RunPCA(P0_Cerebellum.seurat)
+P0_Cerebellum.sce<-as.SingleCellExperiment(P0_Cerebellum.seurat)
+P0_Cerebellum.sce<- runTSNE(P0_Cerebellum.sce)
+P0_Cerebellum.sce<- runUMAP(P0_Cerebellum.sce)
+P0_Cerebellum.seurat<-as.Seurat(P0_Cerebellum.sce)
+save(P0_Cerebellum.seurat,file="P0_CerebellumSEURAT.Rdata")
+
+
+P0_Cerebellum_cds <- as.CellDataSet(P0_Cerebellum.seurat)
+P0_Cerebellum_cds <- estimateSizeFactors(P0_Cerebellum_cds)
+P0_Cerebellum_cds <- classify_cells(P0_Cerebellum_cds, Hugo_classifier,
+                                         db = org.Mm.eg.db,
+                                         cluster_extend = TRUE,
+                                         cds_gene_id_type = "SYMBOL")
+save(P0_Cerebellum_cds,file="P0_CerebellumCDS.Rdata")
+
+qplot(P0_Cerebellum_cds@reducedDimS[,1], P0_Cerebellum_cds@reducedDimS[,2], color = P0_Cerebellum_cds@phenoData@data$OriginalCelltype,size=I(0.5)) + theme_bw()
+qplot(P0_Cerebellum_cds@reducedDimS[,1], P0_Cerebellum_cds@reducedDimS[,2], color = P0_Cerebellum_cds@phenoData@data$cluster_ext_type,size=I(0.5)) + theme_bw()
+
+
+P8a_Cerebellum=read.csv("/Users/hugokim/Documents/Hugos Code/PengJ et al 2019 Cerebellum/GSE122357_RAW/GSM3464550_P8a.csv.gz",header=TRUE)
+rownames(P8a_Cerebellum)=P8a_Cerebellum[,1]
+P8a_Cerebellum=P8a_Cerebellum[,-1]
+
+P8a_Cerebellum_meta=read.csv("/Users/hugokim/Documents/Hugos Code/PengJ et al 2019 Cerebellum/P8a_Metadata.csv",header=TRUE)
+rownames(P8a_Cerebellum_meta)=P8a_Cerebellum_meta[,1]
+
+P8a_Cerebellum.seurat=CreateSeuratObject(counts = P8a_Cerebellum, project = "P8a_Cerebellum",meta.data=P8a_Cerebellum_meta)
+P8a_Cerebellum.seurat <- FindVariableFeatures(P8a_Cerebellum.seurat)
+P8a_Cerebellum.seurat <- ScaleData(P8a_Cerebellum.seurat)
+P8a_Cerebellum.seurat<- RunPCA(P8a_Cerebellum.seurat)
+P8a_Cerebellum.sce<-as.SingleCellExperiment(P8a_Cerebellum.seurat)
+P8a_Cerebellum.sce<- runTSNE(P8a_Cerebellum.sce)
+P8a_Cerebellum.sce<- runUMAP(P8a_Cerebellum.sce)
+P8a_Cerebellum.seurat<-as.Seurat(P8a_Cerebellum.sce)
+save(P8a_Cerebellum.seurat,file="P8a_CerebellumSEURAT.Rdata")
+
+
+P8a_Cerebellum_cds <- as.CellDataSet(P8a_Cerebellum.seurat)
+P8a_Cerebellum_cds <- estimateSizeFactors(P8a_Cerebellum_cds)
+P8a_Cerebellum_cds <- classify_cells(P8a_Cerebellum_cds, Hugo_classifier,
+                                    db = org.Mm.eg.db,
+                                    cluster_extend = TRUE,
+                                    cds_gene_id_type = "SYMBOL")
+save(P8a_Cerebellum_cds,file="P8a_CerebellumCDS.Rdata")
+
+qplot(P8a_Cerebellum_cds@reducedDimS[,1], P8a_Cerebellum_cds@reducedDimS[,2], color = P8a_Cerebellum_cds@phenoData@data$NeuronType,size=I(0.5)) + theme_bw()
+qplot(P8a_Cerebellum_cds@reducedDimS[,1], P8a_Cerebellum_cds@reducedDimS[,2], color = P8a_Cerebellum_cds@phenoData@data$cluster_ext_type,size=I(0.5)) + theme_bw()
+
+P8b_Cerebellum=read.csv("/Users/hugokim/Documents/Hugos Code/PengJ et al 2019 Cerebellum/GSE122357_RAW/GSM3464551_P8b.csv.gz",header=TRUE)
+rownames(P8b_Cerebellum)=P8b_Cerebellum[,1]
+P8b_Cerebellum=P8b_Cerebellum[,-1]
+
+P8b_Cerebellum_meta=read.csv("/Users/hugokim/Documents/Hugos Code/PengJ et al 2019 Cerebellum/P8b_Metadata.csv",header=TRUE)
+rownames(P8b_Cerebellum_meta)=P8b_Cerebellum_meta[,1]
+P8b_Cerebellum.seurat=CreateSeuratObject(counts = P8b_Cerebellum, project = "P8b_Cerebellum",meta.data=P8b_Cerebellum_meta)
+P8b_Cerebellum.seurat <- FindVariableFeatures(P8b_Cerebellum.seurat)
+P8b_Cerebellum.seurat <- ScaleData(P8b_Cerebellum.seurat)
+P8b_Cerebellum.seurat<- RunPCA(P8b_Cerebellum.seurat)
+P8b_Cerebellum.sce<-as.SingleCellExperiment(P8b_Cerebellum.seurat)
+P8b_Cerebellum.sce<- runTSNE(P8b_Cerebellum.sce)
+P8b_Cerebellum.sce<- runUMAP(P8b_Cerebellum.sce)
+P8b_Cerebellum.seurat<-as.Seurat(P8b_Cerebellum.sce)
+save(P8b_Cerebellum.seurat,file="P8b_CerebellumSEURAT.Rdata")
+
+
+P8b_Cerebellum_cds <- as.CellDataSet(P8b_Cerebellum.seurat)
+P8b_Cerebellum_cds <- estimateSizeFactors(P8b_Cerebellum_cds)
+P8b_Cerebellum_cds <- classify_cells(P8b_Cerebellum_cds, Hugo_classifier,
+                                    db = org.Mm.eg.db,
+                                    cluster_extend = TRUE,
+                                    cds_gene_id_type = "SYMBOL")
+save(P8b_Cerebellum_cds,file="P8b_CerebellumCDS.Rdata")
+
+qplot(P8b_Cerebellum_cds@reducedDimS[,1], P8b_Cerebellum_cds@reducedDimS[,2], color = P8b_Cerebellum_cds@phenoData@data$OriginalCelltype,size=I(0.5)) + theme_bw()
+qplot(P8b_Cerebellum_cds@reducedDimS[,1], P8b_Cerebellum_cds@reducedDimS[,2], color = P8b_Cerebellum_cds@phenoData@data$cluster_ext_type,size=I(0.5)) + theme_bw()
+
+```
