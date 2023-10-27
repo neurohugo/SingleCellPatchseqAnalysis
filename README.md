@@ -1,5 +1,4 @@
-# SingleCellPatchseqAnalysis
-# Package Link: RegenOrNoRegen[website]((https://github.com/neurohugo/RegenOrNoRegen))
+# SingleCellPatchseqAnalysis 
 
 <!-- badges: start -->
 
@@ -7,10 +6,13 @@
 
 <br>
 
+
 `RegenOrNoRegen` is an R package that classifies Regenerating or Non-regenerating neurons from scRNAseq data.
 
-Please Download the package from this link [website]((https://github.com/neurohugo/RegenOrNoRegen)). 
+Please Download the package from this link[website]((https://github.com/neurohugo/RegenOrNoRegen)). 
 <br>
+
+Package Link: RegenOrNoRegen[website]((https://github.com/neurohugo/RegenOrNoRegen))
 
 ### Prerequisite: Seurat, Garnett and its requirements
 
@@ -44,13 +46,6 @@ ResultSeurat=RegenorNoRegen(OriginalSeurat)
 
 ````
 
-
 <br>
 
-
-The `magick` R package might fail to install in your conda environment and in that case you can install it with conda instead:
-
-    conda install -c conda-forge r-magick
-    
-<br>
 
