@@ -1,7 +1,7 @@
 # SingleCellPatchseqAnalysis 
 
 <!-- badges: start -->
-[![](https://img.shields.io/badge/devel%20version-1.1.1-blue.svg)](https://github.com/ludvigla/semla/releases) ![](https://img.shields.io/github/last-commit/neurohugo/RegenOrNoRegen.svg) [![License: UCSD](https://img.shields.io/badge/License-UCSD-yellow.svg)](https://opensource.org/license/ucsd/)
+[![](https://img.shields.io/badge/devel%20version-1.1.1-blue.svg)](https://github.com/Neurohugo/RegenOrNoRegen/releases) ![](https://img.shields.io/github/last-commit/neurohugo/RegenOrNoRegen.svg) [![License: UCSD](https://img.shields.io/badge/License-UCSD-yellow.svg)](https://opensource.org/license/ucsd/)
 
 
 <!-- badges: end -->
