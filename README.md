@@ -11,10 +11,10 @@
 
 `RegenOrNoRegen` is an R package that classifies Regenerating or Non-regenerating neurons from scRNAseq data.
 
-Please Download the package from this link [website]((https://github.com/neurohugo/RegenOrNoRegen)). 
+Please Download the package from this link [website](https://github.com/neurohugo/RegenOrNoRegen). 
 <br>
 
-## Package Link: RegenOrNoRegen [website]((https://github.com/neurohugo/RegenOrNoRegen))
+## Package Link: RegenOrNoRegen [website](https://github.com/neurohugo/RegenOrNoRegen)
 
 ### Prerequisite: Seurat, Garnett and its requirements
 
@@ -36,7 +36,7 @@ devtools::install_github("cole-trapnell-lab/garnett")
 The dev version of the package can be installed through GitHub using;
 
 ````
-devtools::install_github("neurohugo/RegenorNoRegen")
+devtools::install_github("neurohugo/RegenOrNoRegen")
 ````
 
 ## Usage
@@ -44,7 +44,7 @@ devtools::install_github("neurohugo/RegenorNoRegen")
 After load the library you can use it this way.
 ````
 
-ResultSeurat=RegenorNoRegen(OriginalSeurat)
+ResultSeurat=RegenOrNoRegen(OriginalSeurat)
 
 ````
 
