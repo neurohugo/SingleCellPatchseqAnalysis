@@ -38,11 +38,13 @@ The dev version of the package can be installed through GitHub using;
 devtools::install_github("neurohugo/RegenOrNoRegen")
 ````
 
-## Usage
+## Usage (Updated 5/12/2025)
 
 After load the library you can use it this way.
+
 ````
-ResultSeurat=RegenOrNoRegen(OriginalSeurat)
+ResultSeurat=RegenOrNoRegen::SeuratReturn(ResultSeurat)
+
 ````
 
 <br>
