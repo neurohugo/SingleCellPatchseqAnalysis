@@ -47,6 +47,14 @@ ResultSeurat=RegenOrNoRegen::SeuratReturn(ResultSeurat)
 
 ````
 
+## Result
+
+You can find your result as a phenotype.
+
+```
+ResultSeurat$RegenerationIndex
+```
+
 <br>
 
 
